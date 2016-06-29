@@ -321,6 +321,20 @@ class Spectrum3d:
 
 
     def getOHsimp(self, meth='o3n2'):
+        """ Uses strong line diagnostics to calculate an oxygen abundance map
+        based on spaxels. Extracts fits the necessary line fluxes and then uses
+        the method defined through meth to calculate 12+log(O/H)
+        
+        Parameters
+        ----------
+        meth : str
+            default 'o3n2', which is the Pettini & Pagel 2004 O3N2 abundance
+            other options are:
+                     n2: Pettini & Pagel 2004 N2
+                     M13: Marino et al. 2013 O3N2
+                     M13N2: Marino et al. 2013 N2
+                     s2: Dopita et al. 2016 S2
+        """        
         ha = self.extractPlane(line='Ha', sC = 1, meth = 'sum')
         hb = self.extractPlane(line='Hb', sC = 1, meth = 'sum')
         oiii = self.extractPlane(line='OIII', sC = 1, meth = 'sum')
