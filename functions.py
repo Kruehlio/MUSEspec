@@ -12,7 +12,7 @@ from pylab import median, mgrid, exp, pi, array
 from scipy import signal
 from spec.astro import isnumber, Avlaws
 
-c1 = 2.99792458E8
+C1 = 2.99792458E8
 
 
 ################################################################################
@@ -178,7 +178,7 @@ def smooth(x, window_len=11, window='flat', rms=0):
 
 def dlafunc(wl, nh):
     lya_rest, lyb_rest = 1215.67E-10, 1025.7222E-10
-    nua_rest, nub_rest = c1/lya_rest, c1/lyb_rest
+    nua_rest, nub_rest = C1/lya_rest, C1/lyb_rest
     nh = nh*1E4
     # Oscillator strength Ly_alpha
     f_a = 0.4162
@@ -200,7 +200,7 @@ def dlafunc(wl, nh):
     const = 3 * lya_rest**2 * delta_a**2 / 8./ pi
     constb = 3 * lyb_rest**2 * delta_b**2 / 8./ pi
 
-    nu = c1 / wl
+    nu = C1 / wl
     
     sigma_a1 = const * ((nu/nua_rest)**4/\
             (4*pi**2*(nu-nua_rest)**2 + delta_a**2/4.*(nu/nua_rest)**6))

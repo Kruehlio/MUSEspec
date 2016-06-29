@@ -64,7 +64,7 @@ class Spectrum3d:
     """ Fits cube class for data exploration, analysis, modelling.
    
    Arguments:
-        inst: Instrument that produced the spectrum (optional, default=xs)
+        inst: Instrument that produced the spectrum (optional, default=MUSE)
         filen: Filename of fits data cube
         target: Target of observation (for output file)
         
@@ -106,6 +106,7 @@ class Spectrum3d:
         fitsin: read a given fits file into a plane
     """
     
+    
     def __init__(self, filen=None, inst='MUSE', target=''):
         self.inst = inst
         self.z = None
@@ -125,6 +126,16 @@ class Spectrum3d:
 
 
     def setFiles(self, filen, fluxmult=1, dAxis=3, mult=1):
+        """ Uses pyfits to set the header, data and error as instance attributes.
+        The fits file should have at least two extension, where the first containst
+        the data, the second the variance. Returns nothing.
+        
+        Parameters
+        ----------
+        filen : str
+            required, this is the filname of the fitsfile to be read in
+        """
+
         # Get primary header
         self.headprim = pyfits.getheader(filen, 0)
         # Get header of data extension
@@ -144,7 +155,7 @@ class Spectrum3d:
         self.wlinc =  self.head[wlinc]
         # Read in data
         self.data = pyfits.getdata(filen, 1)
-        # Read in variance
+        # Read in variance and turn into stdev
         self.erro = pyfits.getdata(filen, 2)**0.5
         if self.target == '':
             self.target = self.headprim['OBJECT']
@@ -157,6 +168,15 @@ class Spectrum3d:
 
 
     def setRedshift(self, z):
+        """ Setting luminosity distance and angular seperation here, provided
+        a given redshift z. Returns nothing.
+        
+        Parameters
+        ----------
+        z : float
+            required, this is the redshift of the source
+        """
+        
         LD, angsep = LDMP(z, v=2)
         logger.info('Luminosity distance at z=%.4f: %.2f MPc' %(z, LD))
         logger.info('Luminosity distance at z=%.4f: %.2e cm' %(z, LD * 3.0857E24))
@@ -167,6 +187,20 @@ class Spectrum3d:
 
 
     def ebvGal(self, ebv = '', rv=3.08):
+        """ If user does not provide ebv, it uses the header information of the 
+        pointing to obtain the Galactic
+        foreground reddening from IRSA. These are by default the Schlafly and
+        Finkbeiner values. Immediatly dereddens the data and error using rv 
+        (default 3.08) in place. Returns nothing.
+        
+        Parameters
+        ----------
+        ebv : float
+            default '', and queries the web given header RA and DEC
+        rv : float
+            default 3.08, total to selective reddening RV
+        """
+        
         if ebv == '':
             ra, dec = self.headprim['RA'], self.headprim['DEC']
             ebv, std, ref, av = getebv(ra, dec, rv)
@@ -189,6 +223,25 @@ class Spectrum3d:
 
 
     def ebvCor(self, line, rv=3.08, redlaw='mw'):
+        """ Uses a the instance attribut ebvmap, the previously calculated map
+        of host reddening to calulate a correction map for a given line.
+        
+        Parameters
+        ----------
+        line : str
+            default '', for example ha for Halpha
+        rv : float
+            default 3.08, total to selective reddening RV
+        redlaw : str
+            default mw, assumed reddening law
+            
+        Returns
+        -------
+        ebvcorr : np.array
+            The correction map to be applied to the linefluxes to correct 
+            for the galaxy's dust absorption
+        """
+
         if len(self.ebvmap) != None:
             WL = RESTWL[line.lower()]/10.
             ebvcorr = 1./np.exp(-1./1.086*self.ebvmap * rv * Avlaws(WL, redlaw))
@@ -201,26 +254,46 @@ class Spectrum3d:
 
 
     def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7):
-      ABcorD = {'g':-0.062, 'V':0.00, 'r':0.178,
-                'R':0.21, 'i':0.410, 'I':0.45, 'z':0.543}
-      wls = {'g': [3856.2, 5347.7], 'r': [5599.5, 6749.0], 'i': [7154.9, 8156.6], 
-          'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4], 
-          'I': [7210., 8750.], 'F814': [6884.0, 9659.4], 'z': [8250.0, 9530.4]}
-      if band in 'VRI':
+        """ Uses synthetic photometry at a given position in a given band at a
+        given magnitude to check the flux calibration of the spectrum. 
+        Returns nothing.
+        
+        Parameters
+        ----------
+        mag : float
+            default '', required magnitude of comparison
+        band : str
+            default r, photometric filter. VRI are assumed to be in Vega, griz 
+            in the AB system
+        ra : float
+            default None, Right Ascension of comparison star
+        dec : float
+            default None, Declination of comparison star. If ra and/or dec are
+            None, uses the spectrum of the full cube
+        radius : int
+            Radius in pixel around ra/dec for specturm extraction
+        """
+
+        ABcorD = {'g':-0.062, 'V':0.00, 'r':0.178,
+                 'R':0.21, 'i':0.410, 'I':0.45, 'z':0.543}
+        wls = {'g': [3856.2, 5347.7], 'r': [5599.5, 6749.0], 'i': [7154.9, 8156.6], 
+           'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4], 
+           'I': [7210., 8750.], 'F814': [6884.0, 9659.4], 'z': [8250.0, 9530.4]}
+        if band in 'VRI':
             mag = mag + ABcorD[band]
-      if ra != None and dec != None:  
+        if ra != None and dec != None:  
           wl, spec, err = self.extrSpec(ra = ra, dec = dec, radius = radius)
-      else:
+        else:
           wl, spec, err = self.extrSpec(total=True)
           
-      bandsel = (wl > wls[band][0]) * (wl < wls[band][1]) 
-      avgflux = np.nanmedian(spec[bandsel])*1E-20
-      avgwl = np.nanmedian(wl[bandsel])
-      fluxspec = ergJy(avgflux, avgwl)
-      fluxref = abflux(mag)
-      logger.info('Scale factor from spectrum to photometry for band %s-band: %.3f' \
+        bandsel = (wl > wls[band][0]) * (wl < wls[band][1]) 
+        avgflux = np.nanmedian(spec[bandsel])*1E-20
+        avgwl = np.nanmedian(wl[bandsel])
+        fluxspec = ergJy(avgflux, avgwl)
+        fluxref = abflux(mag)
+        logger.info('Scale factor from spectrum to photometry for band %s-band: %.3f' \
           %(band, fluxref/fluxspec))
-      self.scale.append([avgwl, fluxref/fluxspec])
+        self.scale.append([avgwl, fluxref/fluxspec])
 
 
     def subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10):
