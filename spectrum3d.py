@@ -101,7 +101,6 @@ class Spectrum3d:
         fpack: fpacks the output file
         rgb: Provided three planes, creates an RGP image
         scaleCube: Scale cube by polynomial of given degree (default 1)
-        writeFiles: writes the output into a fits file
         fitsout: write a given plane into a fits file
         fitsin: read a given fits file into a plane
     """
@@ -212,17 +211,6 @@ class Spectrum3d:
 
 
 
-    def writeFiles(self):
-        if os.path.isfile(self.output):
-            os.remove(self.output)
-        hdu = pyfits.HDUList()
-        hdu.append(pyfits.PrimaryHDU(header = self.headprim))
-        hdu.append(pyfits.ImageHDU(data = self.data, header = self.head))
-        hdu.append(pyfits.ImageHDU(data = self.erro, header = self.headerro))
-        hdu.writeto(self.output)
-
-
-
     def ebvCor(self, line, rv=3.08, redlaw='mw'):
         """ Uses a the instance attribut ebvmap, the previously calculated map
         of host reddening to calulate a correction map for a given line.
@@ -316,7 +304,7 @@ class Spectrum3d:
             wls = np.array(self.scale)[:,0]
     
             b = np.polyfit(x=wls, y=sfac, deg=deg)
-            logger.info('Scaling spectrum and error by ploynomial of degree '\
+            logger.info('Scaling spectrum by ploynomial of degree '\
                        + '%i to %i photometric points' %(deg, len(sfac)))
             logger.info('Linear term %.e' %(b[0]))
             p = np.poly1d(b)
@@ -700,7 +688,8 @@ class Spectrum3d:
 
 
     def extrSpec(self, ra=None, dec=None, x=None, y=None, radius=None,
-                 method='sum', total=False, ell=None, exmask=None):
+                 method='sum', total=False, ell=None, exmask=None, 
+                 pexmask=False):
         """Extracts a single spectrum at a given position.
         If neither radius, total or ell is given, extracts a single spaxel at
         ra, dec, or (if ra, dec are not provided), x and y. If radius, ell or
@@ -734,6 +723,9 @@ class Spectrum3d:
                 If present, uses the given array to extract specific spaxels.
                 Format should be 0 for spaxels to ignore, 1 for spaxels to extract.
                 Must be the same shape as the data cube.
+            pexmask : bool
+                plot extraction mask
+
         Returns
         -------
             self.wave : np.array
@@ -815,6 +807,9 @@ class Spectrum3d:
             err = np.nansum(errors**2, axis=0)**0.5  / nspec
         if self.verbose > 0:
             logger.info('Extracting spectra took %.1f s' %(time.time()-t1))
+        if pexmask == True:
+            logger.info('Plotting extraction map')
+            self.pdfout(exmask, name='exmask', cmap = 'gist_gray')
         return self.wave, spec, err
 
 
@@ -1094,7 +1089,7 @@ class Spectrum3d:
 
     def pdfout(self, plane, smoothx=0, smoothy=0, name='', source='',
                label=None, vmin=None, vmax=None, ra=None, dec=None, median=None,
-               psf=None):
+               psf=None, cmap='viridis'):
         """ Simple 2d-image plot function """
 
         myeffect = withStroke(foreground="w", linewidth=2)
@@ -1125,7 +1120,7 @@ class Spectrum3d:
         ax.set_ylim(10,  self.leny-10)
         ax.set_xlim(10,  self.lenx-10)
 
-        plt.imshow(plane, vmin=vmin, vmax=vmax)#, aspect="auto")#, cmap='Greys')
+        plt.imshow(plane, vmin=vmin, vmax=vmax, cmap=cmap)#, aspect="auto")#, cmap='Greys')
 
         if psf != None:
             psfrad = psf/2.3538/0.2
@@ -1205,6 +1200,21 @@ class Spectrum3d:
 
       
     def fitsout(self, plane, smoothx=0, smoothy=0, name=''):
+        """ Write the given plane into a fits file. Uses header of the original
+        data. Returns nothing, but write a fits file.
+        
+        Parameters
+        ----------
+        plane : np.array
+            data to store in fits file
+        smoothx : int
+            possible Gaussian smoothing length in x-coordinate (default 0)
+        smoothy : int
+            possible Gaussian smoothing length in y-coordinate (default 0)
+        name : str
+            Name to use in fits file name
+        """
+
         planeout = '%s_%s.fits' %(self.output, name)
 
         if smoothx > 0:
@@ -1224,4 +1234,18 @@ class Spectrum3d:
         
         
     def fitsin(self, fits):
-        return pyfits.getdata(fits)
+        """Read in a fits file and retun the data
+        
+        Parameters
+        ----------
+        fits : str
+            fits file name to read
+
+        Returns
+        ----------
+        data : np.array
+            data arry of input fits file
+        """   
+        
+        data = pyfits.getdata(fits)
+        return data
