@@ -107,7 +107,7 @@ class Spectrum3d:
     """
     
     
-    def __init__(self, filen=None, inst='MUSE', target=''):
+    def __init__(self, filen=None, inst='MUSE', target='', verbose=0):
         self.inst = inst
         self.z = None
         self.datfile = ''
@@ -117,6 +117,7 @@ class Spectrum3d:
         self.maskpix = None
         self.ebvmap = None
         self.objmask = None
+        self.verbose = verbose
         self.scale = []
         if filen != None:
             self.setFiles(filen)
@@ -279,21 +280,63 @@ class Spectrum3d:
         wls = {'g': [3856.2, 5347.7], 'r': [5599.5, 6749.0], 'i': [7154.9, 8156.6], 
            'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4], 
            'I': [7210., 8750.], 'F814': [6884.0, 9659.4], 'z': [8250.0, 9530.4]}
+        
         if band in 'VRI':
             mag = mag + ABcorD[band]
-        if ra != None and dec != None:  
-          wl, spec, err = self.extrSpec(ra = ra, dec = dec, radius = radius)
+        if ra != None and dec != None:
+            if self.verbose > 0:
+                logger.info('Star at: %s, %s' %(ra, dec))
+            wl, spec, err = self.extrSpec(ra = ra, dec = dec, radius = radius)
         else:
-          wl, spec, err = self.extrSpec(total=True)
+            wl, spec, err = self.extrSpec(total=True)
           
         bandsel = (wl > wls[band][0]) * (wl < wls[band][1]) 
         avgflux = np.nanmedian(spec[bandsel])*1E-20
         avgwl = np.nanmedian(wl[bandsel])
         fluxspec = ergJy(avgflux, avgwl)
         fluxref = abflux(mag)
-        logger.info('Scale factor from spectrum to photometry for band %s-band: %.3f' \
+        logger.info('Scale factor from spectrum to photometry for %s-band: %.3f' \
           %(band, fluxref/fluxspec))
         self.scale.append([avgwl, fluxref/fluxspec])
+
+    def scaleCube(self, deg=1):
+        """ Fits a polynomial of degree deg to the previously calculated scale-
+        factors at a given wavelength, and modifies the data with the derived
+        correction curve. Returns nothing, but modifies data and error instance
+        attribute in place.
+        
+        Parameters
+        ----------
+        deg : int
+            default 1, required degree of fit
+        """
+
+        if self.scale != []:
+            sfac = np.array(self.scale)[:,1]
+            wls = np.array(self.scale)[:,0]
+    
+            b = np.polyfit(x=wls, y=sfac, deg=deg)
+            logger.info('Scaling spectrum and error by ploynomial of degree '\
+                       + '%i to %i photometric points' %(deg, len(sfac)))
+            logger.info('Linear term %.e' %(b[0]))
+            p = np.poly1d(b)
+            corrf = p(self.wave)
+            self.data *= corrf[:,np.newaxis, np.newaxis]
+            self.erro *= corrf[:,np.newaxis, np.newaxis]
+            fig1 = plt.figure(figsize = (6,4.2))
+            fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
+            ax1 = fig1.add_subplot(1, 1, 1)
+            ax1.errorbar(wls, sfac, ms=8, fmt='o', color='firebrick')
+            ax1.plot(self.wave, corrf, '-', color ='black')
+            ax1.plot(self.wave, np.ones(len(corrf)), '--', color='black')
+            ax1.set_xlabel(r'$\rm{Observed\,wavelength\,(\AA)}$', fontsize=18)
+            ax1.set_ylabel(r'$\rm{Correction\, factor}$', fontsize=18)
+            ax1.set_xlim(4650, 9300)
+            fig1.savefig('%s_%s_photcorr.pdf' %(self.inst, self.target))
+            plt.close(fig1)
+        else:
+            logger.warning("No scaling performed")
+            logger.warning("Calculate scaling first with checkPhot")
 
 
     def subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10):
@@ -310,6 +353,19 @@ class Spectrum3d:
 
 
     def getSFR(self):
+        """ Uses Kennicut 1998 formulation to convert Ha flux into SFR. Assumes
+        a Chabrier 2003 IMF, and corrects for host intrinsic E_B-V if the map
+        has previously been calculated. No Parameters. Requires the redshift to
+        be set, to calculate the luminosity distance.
+        
+        Returns
+        -------
+            sfrmap : np.array
+                Contains the star-formation rate map density, based on Halpha flux 
+                values (corrected for galaxy E_B-V if applicable). Units is
+                M_sun per year per kpc**2. Note the per kpc**2.
+        """  
+        logger.info( 'Calculating SFR map')
         haflux = self.extractPlane(line='Ha', sC=1, meth='sum')
         halum = 4 * np.pi * self.LDMP**2 * haflux * 1E-20
         if self.ebvmap != None:
@@ -327,20 +383,27 @@ class Spectrum3d:
         
         Parameters
         ----------
-        meth : str
-            default 'o3n2', which is the Pettini & Pagel 2004 O3N2 abundance
-            other options are:
+            meth : str
+                default 'o3n2', which is the Pettini & Pagel 2004 O3N2 abundance
+                other options are:
                      n2: Pettini & Pagel 2004 N2
                      M13: Marino et al. 2013 O3N2
                      M13N2: Marino et al. 2013 N2
                      s2: Dopita et al. 2016 S2
+                     
+        Returns
+        -------
+            ohmap : np.array
+                Contains the values of 12 + log(O/H) for the given method
         """        
-        ha = self.extractPlane(line='Ha', sC = 1, meth = 'sum')
-        hb = self.extractPlane(line='Hb', sC = 1, meth = 'sum')
-        oiii = self.extractPlane(line='OIII', sC = 1, meth = 'sum')
-        nii = self.extractPlane(line='NII', sC = 1, meth = 'sum')
-        siia = self.extractPlane(line='SIIa', sC = 1, meth = 'sum')
-        siib = self.extractPlane(line='SIIb', sC = 1, meth = 'sum')
+
+        logger.info( 'Calculating oxygen abundance map')
+        ha = self.extractPlane(line='Ha', sC=1, meth='sum')
+        hb = self.extractPlane(line='Hb', sC=1, meth='sum')
+        oiii = self.extractPlane(line='OIII', sC=1, meth='sum')
+        nii = self.extractPlane(line='NII', sC=1, meth='sum')
+        siia = self.extractPlane(line='SIIa', sC=1, meth='sum')
+        siib = self.extractPlane(line='SIIb', sC=1, meth='sum')
         
         o3n2 = np.log10((oiii/hb)/(nii/ha))
         n2 = np.log10(nii/ha)
@@ -361,6 +424,16 @@ class Spectrum3d:
 
 
     def getIon(self):
+        """ Uses the ratio between a collisionally excited line ([OIII]5007)
+        and the recombination line Hbeta as a tracer of ionization/excitation        
+                     
+        Returns
+        -------
+        ionmap : np.array
+            Contains the values of [OIII]/Hbeta
+        """           
+        
+        logger.info( 'Calculating [OIII]/Hbeta map')
         hbflux = self.extractPlane(line='Hb', sC = 1, meth = 'sum')
         oiiiflux = self.extractPlane(line='OIII', sC = 1, meth = 'sum')
         ionmap = oiiiflux/hbflux
@@ -369,6 +442,25 @@ class Spectrum3d:
 
 
     def getEW(self, line, dv=100):
+        """ Calculates the equivalent width (rest-frame) for a given line. Calls
+        getCont, and extractPlane to derive line fluxes and continua
+
+        Parameters
+        ----------
+            line : str
+                Emission line name (Ha, Hb, OIII, NII, SIIa, SIIb)
+            dv : float
+                Velocity width in km/s around which to sum the line flux
+                default 100 kms (corresponds to an interval of +/- 200 km/s
+                to be extracted)
+                     
+        Returns
+        -------
+            ewmap : np.array
+                Equivalent width in AA for the given line
+        """       
+        
+        logger.info( 'Calculating map with equivalence width of line %s' %line)
         flux = self.extractPlane(line=line, sC = 1, meth = 'sum')
         if line in ['Ha', 'ha', 'Halpha']:
             contmin = RESTWL['niia'] * (1+self.z) - 2*dv/c*RESTWL['niia']
@@ -395,6 +487,22 @@ class Spectrum3d:
 
 
     def BPT(self, snf=5, snb=5):
+        """ Calculates the diagnostic line ratios of the Baldwin-Philips-Terlevich
+        diagram ([NII]/Halpha) and [OIII]/Hbeta. Applies a signal-to-noise cut
+        for the individual line, and plots the resulting values in an inten-
+        sity map. Return nothing, but produces a pdf plot.
+
+        Parameters
+        ----------
+            snf : float
+                Signal to noise ratio cut of the faint lines, [NII] and Hbeta
+                detault (5)
+            snb : float
+                Signal to noise ratio cut of the bright lines, [OIII] and Halpha
+                detault (5)
+        """       
+
+        logger.info( 'Deriving BPT diagram')
         ha = self.extractPlane(line='ha', sC = 1)
         hae = self.extractPlane(line='ha', meth = 'error')
         oiii = self.extractPlane(line='oiiib', sC = 1)
@@ -448,6 +556,18 @@ class Spectrum3d:
 
 
     def getEBV(self):
+        """ Uses the Balmer decrement (Halpha/Hbeta) to calculate the relative
+        color excess E_B-V using the intrinsic ratio of Osterbrook at 10^4 K of
+        Halpha/Hbeta = 2.87. First extracts Halpha and Hbeta maps to derive
+        the ebvmap.
+
+        Returns
+        -------
+            ebvmap : np.array
+                2-d map of the color excess E_B-V
+        """  
+
+        logger.info( 'Calculating E_B-V map')
         Cha, Chb, Chg, Chd = 1, 0.348, 0.162, 0.089
         kha, khb, khg, khd = 2.446, 3.560, 4.019, 4.253
         haflux = self.extractPlane(line='Ha', sC = 1, meth = 'sum')
@@ -462,6 +582,23 @@ class Spectrum3d:
 
 
     def subCube(self, wl1=None, wl2=None):
+        """Extracts a subcube between two wavelengths
+
+        Parameters
+        ----------
+            wl1 : float
+                Lower wavelength
+            wl2 : float
+                Upper wavelength
+       
+        Returns
+        -------
+            subcube : np.array
+                2-d subcube between wl1 and wl2
+            subwl : np.array
+                Wavelengths of the subcube
+        """  
+
         pix1 = self.wltopix(wl1)
         pix2 = max(pix1+1, self.wltopix(wl2)+1)
         subcube = self.data[pix1:pix2]
@@ -471,7 +608,34 @@ class Spectrum3d:
 
 
     def extractPlane(self, wl1='', wl2='', z=None, line=None, dv=100,
-                     meth = 'sum', sC = 0):
+                     meth = 'sum', sC=0, v=0):
+        """Extracts a single plane, summed/averaged/medianed between two wave-
+        lenghts, or for a single emission line
+
+        Parameters
+        ----------
+            wl1 : float
+                Lower wavelength
+            wl2 : float
+                Upper wavelength
+            z : float 
+                Redshift (default None)
+            line : str 
+                Emission line to extract (default None)
+            method : str
+                Method to cobine, default sum, options average, median, error
+                If method = error, produces the error plane
+            dv : float
+                Velocity width in km/s around which to sum the line flux
+                default 100 kms (corresponds to an interval of +/- 200 km/s
+                to be extracted)   
+            sC : int
+                subtract the continuum in the extracted plane (default 0 = no)
+        Returns
+        -------
+            currPlane : np.array
+                2-d plane combining the data between wl1 and wl2
+        """  
 
         if z == None: z = self.z
         if z == None: z = 0
@@ -523,8 +687,9 @@ class Spectrum3d:
             currPlane = np.nansum(self.erro[pix1:pix2]**2, axis = 0)**0.5
 
         if sC == 1:
-            logger.info( 'Subtracting continuum using lambda < %.1f and lambda > %.1f' \
-                %(cont1, cont2))
+            if self.verbose > 0:
+                logger.info( 'Subtracting continuum using lambda < %.1f and lambda > %.1f' \
+                    %(cont1, cont2))
             currPlane = self.subtractCont(currPlane, pix1, pix2,
                                                cpix1, cpix2)
 
@@ -535,7 +700,49 @@ class Spectrum3d:
 
 
     def extrSpec(self, ra=None, dec=None, x=None, y=None, radius=None,
-                 method='sum', total=False, ell=None, extrmap=None):
+                 method='sum', total=False, ell=None, exmask=None):
+        """Extracts a single spectrum at a given position.
+        If neither radius, total or ell is given, extracts a single spaxel at
+        ra, dec, or (if ra, dec are not provided), x and y. If radius, ell or
+        total is given, first creates an extraction mask, containing the spaxels
+        to be extracted and finally combines them.
+
+        Parameters
+        ----------
+            ra : float
+                Right ascension in cube of central pixel
+            dec : float
+                Declination in cube of central pixel
+            x : int 
+                x pixel value in cube of central pixel
+            y : int 
+                y pixel value in cube of central pixel
+            radius : float
+                Radius around central pixel to extract in arcsec
+            method : str 
+                How to extract multiple pixels
+            total : bool
+                Whether to extract the full cube. If an object mask is present, 
+                i.e., has been created previously, then it only extracts the 
+                spaxels in the object mask.
+            ell : list
+                Parameters of the ellipse for extraction. Ellipse is given in 
+                pixel coordinates with format [posx, posy, a, b, theta] where
+                posx, posy are the central pixels, a, b the semi-major and minor
+                axis length, and theta the rotation angle of the ellipse.
+            exmask : np.array
+                If present, uses the given array to extract specific spaxels.
+                Format should be 0 for spaxels to ignore, 1 for spaxels to extract.
+                Must be the same shape as the data cube.
+        Returns
+        -------
+            self.wave : np.array
+                Wavelength of the extracted spectrum
+            spec : np.array
+                Flux values of extracted/combined spaxels
+            error : np.array
+                Error values of extracted/combined spaxels
+        """  
 
         if ra != None and dec != None:
             try:
@@ -548,13 +755,13 @@ class Spectrum3d:
             posx, posy = x + 1, y + 1
 
         if radius == None and total == False and ell==None:
-            logger.info( 'Extracting pixel %i, %i' %(posx, posy))
+            logger.info('Extracting pixel %i, %i' %(posx, posy))
             spec = np.array(self.data[:,posy-1,posx-1])
             err  = np.array(self.erro[:,posy-1,posx-1])
             return self.wave, spec, err
 
         if total == False and radius != None:
-            logger.info( 'Creating extraction mask radius')
+            logger.info( 'Creating extraction mask with radius %i pixel' %radius)
             radpix = radius / self.pixsky
             x, y = np.indices(self.data.shape[0:2])
             
@@ -592,7 +799,8 @@ class Spectrum3d:
 
         spectra = np.array(spectra)
         errors = np.array(errors)
-        logger.info('Used %i spaxels' %(nspec))
+        if self.verbose > 0:
+            logger.info('Used %i spaxels' %(nspec))
 
         if method == 'sum':
             spec = np.nansum(spectra, axis=0)
@@ -605,15 +813,36 @@ class Spectrum3d:
         if method in ['average', 'avg']:
             spec = np.nansum(spectra, axis=0) / nspec
             err = np.nansum(errors**2, axis=0)**0.5  / nspec
-
-
-        logger.info('Extracting spectra took %.1f s' %(time.time()-t1))
+        if self.verbose > 0:
+            logger.info('Extracting spectra took %.1f s' %(time.time()-t1))
         return self.wave, spec, err
 
 
     def astro(self, starras, stardecs, ras, decs):
         """Correct MUSE astrometry: Starra and stardec are lists of the original
-        coordinates of a source in the MUSE cube with actual coordinates ra, dec"""
+        coordinates of a source in the MUSE cube with actual coordinates ra, dec.
+        Returns nothing, but changes the header keywords CRVAL1 and CRVAL2 in
+        the instance attribute head. Can only correct a translation mismath,
+        no rotation, plate scale changes (should be low). Length of 
+        starras, stardecs, ras, decs must of course be equalt for the code to
+        make sense.
+        
+        Parameters
+        ----------
+            starras : list
+                List of right ascension positions in cube of reference stars
+            stardecs : list
+                List of declination positions in cube of reference stars
+            ras : list 
+                List of right ascension true positions of reference stars
+            decs : list 
+                List of declinations true positions of reference stars
+        """
+        
+        if len(starras) != len(stardecs) or len(ras) != len(decs) or \
+           len(starras) != len(ras):
+            logger.error('Input lists must be of equal length')
+
         dra, ddec = np.array([]), np.array([])
         for starra, stardec, ra, dec in zip(starras, stardecs, ras, decs):
             starra, stardec = sexa2deg(starra, stardec)
@@ -629,15 +858,19 @@ class Spectrum3d:
 
 
     def wltopix(self, wl):
+        """ Converts wavelength as input into nearest integer pixel value """
         pix = ((wl - self.wave[0]) / self.wlinc) + 1
         return max(0, int(round(pix)))
 
 
     def pixtowl(self, pix):
+        """ Converts pixel into wavelength """
         return self.wave[pix-1]
 
 
     def pixtosky(self, x, y):
+        """ Converts x, y positions into ra, dec in degree """
+        
         dx = x - self.head['CRPIX1']
         dy = y - self.head['CRPIX2']
         decdeg = self.head['CRVAL2'] + self.head['CD2_2'] * dy
@@ -647,6 +880,8 @@ class Spectrum3d:
 
 
     def skytopix(self, ra, dec):
+        """ Converts ra, dec positions in degrees into x, y """
+        
         y = (dec - self.head['CRVAL2']) / self.head['CD2_2'] + self.head['CRPIX2']
         x = ((ra - self.head['CRVAL1']) / self.head['CD1_1']) *\
             np.cos( dec * np.pi/180.) + self.head['CRPIX1']
@@ -654,6 +889,8 @@ class Spectrum3d:
 
 
     def pixtosexa(self, x, y):
+        """ Converts x, y positions into ra, dec in sexagesimal """
+
         ra, dec = self.pixtosky(x,y)
         x, y = deg2sexa(ra, dec)
         return (x, y)
@@ -661,6 +898,8 @@ class Spectrum3d:
 
 
     def sexatopix(self, ra, dec):
+        """ Converts ra, dec positions in sexagesimal into x, y """
+
         ra, dec = sexa2deg(ra, dec)
         x, y = self.skytopix(ra,dec)
         return (int(round(x)), int(round(y)))
@@ -668,6 +907,26 @@ class Spectrum3d:
 
 
     def velMap(self, line='ha', dv=250):
+        """Produces a velocity map. Fits the emission line profile of the given
+        line with a Gaussian, to derive central positions and Gaussian widths.
+        Should be parallelized, but doesnt work as the output cube is scrambled
+        when using more then 1 thread. Would love to know why.
+        
+        Parameters
+        ----------
+            line : str
+                Emission line to use for velocity map (default Halpha)
+            dv : float
+                Velocity width in km/s around which to fit is performed 
+                default 250 kms 
+ 
+        Returns
+        -------
+            velmap : np.array
+                Velocity map in km/s difference to the central value
+
+        """
+        
         logger.info('Calculating valocity map')
         if line in ['Halpha', 'Ha', 'ha']:
             wlline = RESTWL['ha'] * (1 + self.z)
@@ -696,7 +955,7 @@ class Spectrum3d:
         sigmamape[sigmamape == 0] = np.max(sigmamape)
 
         if self.objmask != None:
-            logger.info( 'Limiting range to objectmask')
+            logger.info('Limiting range to objectmask')
             wlmean = np.nanmedian(meanmap[self.objmask == 1])
         else:
             wlmean = np.nansum(meanmap / meanmape**2) / np.nansum(1./meanmape**2)
@@ -709,6 +968,8 @@ class Spectrum3d:
 
 
     def createaxis(self):
+        """ Plot helper method """
+        
         minra, mindec = self.pixtosexa(self.head['NAXIS1'], 0)
         maxra, maxdec = self.pixtosexa(0, self.head['NAXIS2'])
         prera = '%s:%s:' %tuple(minra.split(':')[:2])
@@ -737,6 +998,8 @@ class Spectrum3d:
 
     def plotxy(self, x, y, xerr=None, yerr=None, ylabel=None, xlabel=None,
                  name=''):
+        """ Simple error bar plot convinience method """
+
         fig = plt.figure(figsize = (7,4))
         fig.subplots_adjust(bottom=0.13, top=0.97, left=0.13, right=0.97)
         ax = fig.add_subplot(1, 1, 1)
@@ -746,16 +1009,16 @@ class Spectrum3d:
                     color = 'blue', alpha = 0.2, ms = 0.5,
                     # rasterized = raster,
                     mew = 2, zorder = 1)
-#        ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$')
-#        ax.set_xlabel(r'$\rm{Observed\,wavelength\, (\AA)}$')
-#        ax.set_ylim(0)
-#        ax.set_xlim(self.wave[0], self.wave[-1])
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel(ylabel)
         plt.savefig('%s_%s_%s.pdf' %(self.inst, self.target, name))
         plt.close(fig)
 
 
 
     def plotspec(self, x, y, err=None, name=''):
+        """ Simple spectrum bar plot convinience method """
+
         fig = plt.figure(figsize = (7,4))
         fig.subplots_adjust(bottom=0.13, top=0.97, left=0.13, right=0.97)
         ax = fig.add_subplot(1, 1, 1)
@@ -772,6 +1035,9 @@ class Spectrum3d:
 
 
     def hiidetect(self, plane, thresh=10, median=4):
+        """ HII segregation algorithm. Work in progress. """
+
+
         logger.info('HII region segregation with EW threshold %i A' %(thresh))
         plane = scipy.ndimage.filters.median_filter(plane, median)
         logger.info('Median filtering input plane')
@@ -829,6 +1095,7 @@ class Spectrum3d:
     def pdfout(self, plane, smoothx=0, smoothy=0, name='', source='',
                label=None, vmin=None, vmax=None, ra=None, dec=None, median=None,
                psf=None):
+        """ Simple 2d-image plot function """
 
         myeffect = withStroke(foreground="w", linewidth=2)
         kwargs = dict(path_effects=[myeffect])
@@ -905,6 +1172,7 @@ class Spectrum3d:
 
     def rgb(self, planes, minval=None, maxval=None, scale='lin'):
         """ Creates and rgb image from three input planes (bgr) """
+        
         if len(planes) != 3:
             logger.error('There must be three input planes')
             raise SystemExit           
@@ -935,32 +1203,6 @@ class Spectrum3d:
         return img
 
 
-
-    def scaleCube(self, deg=1):
-      if self.scale != []:
-          sfac = np.array(self.scale)[:,1]
-          wls = np.array(self.scale)[:,0]
-
-          b = np.polyfit(x=wls, y=sfac, deg = deg)
-          logger.info('Scaled spectrum and error by ploynomial of degree '\
-                    + '%i to %i photometric points' %(deg, len(sfac)))
-          logger.info('Linear term %.e' %(b[0]))
-          p = np.poly1d(b)
-          corrf = p(self.wave)
-          self.data *= corrf[:,np.newaxis, np.newaxis]
-          self.erro *= corrf[:,np.newaxis, np.newaxis]
-          fig1 = plt.figure(figsize = (6,4.2))
-          fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
-          ax1 = fig1.add_subplot(1, 1, 1)
-          ax1.errorbar(wls, sfac, ms = 8, fmt='o', color ='firebrick')
-          ax1.plot(self.wave, corrf, '-', color ='black')
-          ax1.plot(self.wave, np.ones(len(corrf)), '--', color ='black')
-          ax1.set_xlabel(r'$\rm{Observed\,wavelength\,(\AA)}$', fontsize=18)
-          ax1.set_ylabel(r'$\rm{Correction\, factor}$', fontsize=18)
-          ax1.set_xlim(4650, 9300)
-          fig1.savefig('%s_%s_photcorr.pdf' %(self.inst, self.target))
-          plt.close(fig1)
-      
       
     def fitsout(self, plane, smoothx=0, smoothy=0, name=''):
         planeout = '%s_%s.fits' %(self.output, name)
