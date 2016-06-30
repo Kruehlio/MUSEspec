@@ -378,7 +378,7 @@ class Spectrum3d:
                      M13: Marino et al. 2013 O3N2
                      M13N2: Marino et al. 2013 N2
                      s2: Dopita et al. 2016 S2
-                     
+                     D02N2: Denicolo et. al. 2002 N2
         Returns
         -------
             ohmap : np.array
@@ -405,6 +405,8 @@ class Spectrum3d:
             ohmap = 8.533 - 0.214 * o3n2
         if meth in ['M13N2']:
             ohmap = 8.743 + 0.462*n2
+        if meth in ['D02N2']:
+            ohmap = 9.12 + 0.73*n2
         if meth in ['s2', 'S2', 'D16']:
             ohmap = 8.77 + s2 + 0.45 * (s2 + 0.3)**5
         return ohmap
@@ -449,7 +451,9 @@ class Spectrum3d:
         """       
         
         logger.info( 'Calculating map with equivalence width of line %s' %line)
+        # Get line fluxes
         flux = self.extractPlane(line=line, sC = 1, meth = 'sum')
+        # Set continuum range, make sure no other emission line lies within
         if line in ['Ha', 'ha', 'Halpha']:
             contmin = RESTWL['niia'] * (1+self.z) - 2*dv/c*RESTWL['niia']
             contmax = RESTWL['nii'] * (1+self.z) + 2*dv/c*RESTWL['nii']
@@ -469,6 +473,7 @@ class Spectrum3d:
             contmin = RESTWL['siia'] * (1+self.z) - 2*dv/c*RESTWL['siia']
             contmax = RESTWL['siib'] * (1+self.z) + 2*dv/c*RESTWL['siib']
         cont = self.getCont(self.wltopix(contmin), self.wltopix(contmax))
+        # Calculate emission line rest-frame equivalent width
         ewmap = flux/cont/(1+self.z)
         return ewmap
 
@@ -504,6 +509,8 @@ class Spectrum3d:
         
         niiha = np.log10(nii[sel].flatten()/ha[sel].flatten())
         oiiihb = np.log10(oiii[sel].flatten()/hb[sel].flatten())
+        
+        # The rest is just for the plot
         bins = [120,120]
         xyrange = [[-1.5,0.5],[-1.2,1.2]] 
         hh, locx, locy = scipy.histogram2d(niiha, oiiihb, range=xyrange, bins=bins)
@@ -528,7 +535,9 @@ class Spectrum3d:
         x = -0.596*kf3**2 - 0.687 * kf3 -0.655  
         kfz0 = 0.61/((kf0)-0.02-0.1833*0)+1.2+0.03*0
 
-        ax1.plot(x, kf3,  '-', lw = 1.5, color = '0.0')                      
+        # SDSS ridgeline
+        ax1.plot(x, kf3,  '-', lw = 1.5, color = '0.0')             
+        # AGN/SF discrimination at z = 0         
         ax1.plot(kf0, kfz0, '--', lw = 2.5, color = '0.2')                 
         ax1.set_xlim(-1.65, 0.3)
         ax1.set_ylim(-1.0, 1.0)
@@ -1029,9 +1038,8 @@ class Spectrum3d:
         plt.close(fig)
 
 
-    def hiidetect(self, plane, thresh=10, median=4):
+    def hiidetect(self, plane, thresh=15, median=5):
         """ HII segregation algorithm. Work in progress. """
-
 
         logger.info('HII region segregation with EW threshold %i A' %(thresh))
         plane = scipy.ndimage.filters.median_filter(plane, median)
@@ -1041,13 +1049,14 @@ class Spectrum3d:
         logger.info('Maximum distance from brightest region in px: %i' %maxdist)
         logger.info('Minimum area of HII region in px: %i' %minpix)
         segmap, h2count = plane * 0, 20
+        maxy, maxx = plane.shape
         h2inf = {}
         while True:
             # Highest count pixel in EW map
             h2indx = np.where(plane == np.nanmax(plane))
             h2indx = h2indx[0][0], h2indx[1][0]
             h2save = []
-            # Highest count pixel below threshold we break
+            # Highest count pixel below threshold we break segration loop
             if plane[h2indx] < thresh:
                 break
 
@@ -1055,22 +1064,28 @@ class Spectrum3d:
             for r in np.arange(maxdist):
                samereg = np.array([])
                for j in np.arange(-r, r+1, 1):
-                    radflux = 0
                     for i in np.arange(-r, r+1, 1):
                         if r-1 < (j**2 + i**2)**0.5 <= r:
                             posy, posx = h2indx[0] + i, h2indx[1] + j
-                            # Check pixel value at positions
-                            if plane[posy, posx] > thresh:
-                                h2save.append([posy, posx])
-                                samereg = np.append(samereg, 1)
-                            elif plane[posy, posx] < -10:
-                                samereg = np.append(samereg, -2)
-                            else:
-                                samereg = np.append(samereg, 0)
-               
+
+                            # Are we still within the cube ?
+                            if posy  < maxy and posx < maxx:
+                                # Check pixel value at positions above thesh
+                                if plane[posy, posx] > thresh:
+                                    h2save.append([posy, posx])
+                                    samereg = np.append(samereg, 1)
+                                # Below threshold, should we stop growing the region
+                                elif plane[posy, posx] < -10:
+                                    samereg = np.append(samereg, -2)
+                                else:
+                                    samereg = np.append(samereg, 0)
+               # If there are more pixels below the threshold than above, we stop
+               # growing the individual region
+               # This is somewhat arbitrary
                if np.mean(samereg) < 0.6:
                    break
             
+            # Save info on the specific region in dict
             if len(h2save) > minpix:
                 h2count += 1
                 h2inf['%s' %h2count] = {}
