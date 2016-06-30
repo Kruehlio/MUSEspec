@@ -971,35 +971,6 @@ class Spectrum3d:
 
 
 
-    def createaxis(self):
-        """ Plot helper method """
-        
-        minra, mindec = self.pixtosexa(self.head['NAXIS1'], 0)
-        maxra, maxdec = self.pixtosexa(0, self.head['NAXIS2'])
-        prera = '%s:%s:' %tuple(minra.split(':')[:2])
-        minh, minm, mins = mindec.split(':')
-        while True:
-            mins = int(float(mins))-1
-            if mins%10==0: break
-        decs = [sexa2deg('00:00:00', '%s:%s:%s' %(minh, minm, mins))[1]]
-        maxdec = sexa2deg('00:00:00', maxdec)[1]
-        for ds in np.arange(20, 400, 20):
-            if decs[0]+ds/3600. < maxdec:
-                decs.append(decs[0]+ds/3600. + 1E-7)
-
-        ras = [ int(minra.split(':')[2][:2]) + i  for i in np.arange(7,0,-1) ]
-        ras = [ ra for ra in ras if ra <= float(maxra.split(':')[2][:2]) ]
-        ras = [ prera + str(ra) for ra in ras]
-        raspx = [self.sexatopix(ra, mindec)[0] for ra in ras ]
-        ras = [r'$%s^{\rm{h}}%s^{\rm{m}}%s^{\rm{s}}$'%tuple(ra.split(':')) for ra in ras]
-
-        decs = [ deg2sexa(0., dec)[1][:-3] for dec in decs]
-        decspx = [self.sexatopix(minra, dec)[1] for dec in decs ]
-        decs = [r"$%s^\circ%s'\,%s''$"%tuple(dec.split(':')) for dec in decs]
-        return [raspx, ras], [decspx, decs]
-
-
-
     def plotxy(self, x, y, xerr=None, yerr=None, ylabel=None, xlabel=None,
                  name=''):
         """ Simple error bar plot convinience method """
@@ -1129,8 +1100,6 @@ class Spectrum3d:
             fig = plt.figure(figsize = (9,9))
             fig.subplots_adjust(bottom=0.18, top=0.99, left=0.18, right=0.99)
         ax = fig.add_subplot(1, 1, 1)
-        ax.yaxis.set_major_formatter(plt.FormatStrFormatter(r'$%i$'))
-        ax.xaxis.set_major_formatter(plt.FormatStrFormatter(r'$%i$'))
 
         ax.set_ylim(10,  self.leny-10)
         ax.set_xlim(10,  self.lenx-10)
@@ -1169,11 +1138,11 @@ class Spectrum3d:
         plt.yticks(rotation=50)
 
         ax.set_xticks(xticks)
-        ax.set_xticklabels(xlabels)
+        ax.set_xticklabels(xlabels, size=16)
         ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabels)
-        ax.set_xlabel(r'Right Ascension (J2000)', size = 16)
-        ax.set_ylabel(r'Declination (J2000)', size = 16)
+        ax.set_yticklabels(ylabels, size=16)
+        ax.set_xlabel(r'Right Ascension (J2000)', size = 20)
+        ax.set_ylabel(r'Declination (J2000)', size = 20)
 
         plt.savefig('%s_%s_%s.pdf' %(self.inst, self.target, name))
         plt.close(fig)
@@ -1264,3 +1233,77 @@ class Spectrum3d:
         
         data = pyfits.getdata(fits)
         return data
+        
+        
+
+
+    def createaxis(self):
+        """ WCS axis helper method """
+        
+        if True:
+            minra, mindec = self.pixtosexa(self.head['NAXIS1']-20, 20)
+            maxra, maxdec = self.pixtosexa(20, self.head['NAXIS2']-20)
+            if self.head['NAXIS1'] > 500: 
+                dx = 30
+            else: 
+                dx = 20
+            if self.head['NAXIS2'] > 500: 
+                dy = 2
+            else: 
+                dy = 1
+            
+            minram = int(minra.split(':')[1])
+            minrah = int(minra.split(':')[0])
+            minras = np.ceil(float(minra.split(':')[-1]))
+    
+            axpx, axlab, aypx, aylab = [], [], [], []
+
+            def az(numb):
+                if 0 <= numb < 10: 
+                    return '0%i' %numb
+                elif -10 < numb < 0:
+                    return '-0%i' %np.abs(numb)
+                else: 
+                    return '%i' %numb
+                    
+            while True:
+                if minras >= 60:
+                    minram += 1
+                    minras -= 60
+                if minram >= 60:
+                    minrah += 1
+                    minram -= 60
+                if minrah >= 24:
+                    minrah -= 24
+                axra = '%s:%s:%s' %(az(minrah), az(minram), az(minras))
+                xpx = self.sexatopix(axra, mindec)[0]
+                if xpx > self.head['NAXIS1'] or xpx < 0:
+                    break
+                else:
+                    axpx.append(xpx)
+                    axlab.append(r'$%s^{\rm{h}}%s^{\rm{m}}%s^{\rm{s}}$'%tuple(axra.split(':')) )
+                minras += dy
+
+            maxdem = int(maxdec.split(':')[1])
+            maxdeh = int(maxdec.split(':')[0])
+            maxdes = np.round(float(maxdec.split(':')[-1]) + 10, -1)
+
+            while True:
+                if maxdes >= 60:
+                    maxdem += 1
+                    maxdes -= 60
+                if maxdem >= 60:
+                    maxdeh += 1
+                    maxdem -= 60
+                    
+                axdec = '%s:%s:%s' %(az(maxdeh), az(maxdem), az(maxdes))
+                ypx = self.sexatopix(minra, axdec)[1]
+                if ypx > self.head['NAXIS2'] or ypx < 0:
+                    break
+                else:
+                    aypx.append(ypx)
+                    aylab.append(r"$%s^\circ%s'\,%s''$"%tuple(axdec.split(':')))
+                maxdes += dx
+            
+            return [axpx, axlab], [aypx, aylab]
+        
