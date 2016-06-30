@@ -10,7 +10,7 @@ import numpy
 
 from pylab import median, mgrid, exp, pi, array
 from scipy import signal
-from spec.astro import isnumber, Avlaws
+from MUSEspec.astro import isnumber, Avlaws
 
 C1 = 2.99792458E8
 

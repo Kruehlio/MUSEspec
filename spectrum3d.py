@@ -23,11 +23,11 @@ import logging
 import sys
 
 from joblib import Parallel, delayed
-from spec.astro import (LDMP, Avlaws, airtovac, ergJy, 
+from MUSEspec.astro import (LDMP, Avlaws, airtovac, ergJy, 
                        abflux, getebv)
 
-from spec.functions import (blur_image, deg2sexa, sexa2deg, ccmred)
-from spec.fitter import onedgaussfit
+from MUSEspec.functions import (blur_image, deg2sexa, sexa2deg, ccmred)
+from MUSEspec.fitter import onedgaussfit
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'

@@ -23,9 +23,9 @@ import zap
 import time
 import subprocess
 
-from spec.astro import airtovac
-from spec.functions import smooth, checkExec
-from spec.fitter import onedgaussfit
+from MUSEspec.astro import airtovac
+from MUSEspec.functions import smooth, checkExec
+from MUSEspec.fitter import onedgaussfit
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
