@@ -23,7 +23,7 @@ import logging
 import sys
 
 from joblib import Parallel, delayed
-from MUSEspec.astro import (LDMP, Avlaws, airtovac, ergJy, 
+from MUSEspec.astro import (LDMP, Avlaws, airtovac, ergJy,
                        abflux, getebv)
 
 from MUSEspec.functions import (blur_image, deg2sexa, sexa2deg, ccmred)
@@ -48,7 +48,7 @@ c = 2.99792458E5
 
 RESTWL = {'oiia' : 3727.092, 'oii':3728.30, 'oiib' : 3729.875, 'hd': 4102.9351,
           'hg' : 4341.69, 'hb' : 4862.68, 'niia':6549.86,
-          'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii': 4990., 'ha' : 6564.61, 
+          'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii': 4990., 'ha' : 6564.61,
           'nii': 6585.27, 'siia':6718.29, 'siib':6732.68,
           'neiii' : 3869.81}
 
@@ -58,16 +58,16 @@ def gaussfit(x, y):
     return gaussparams[0][2], gaussparams[0][3],\
             gaussparams[2][2], gaussparams[2][3],\
             gaussparams[2][1]/gaussparams[0][1]
-            
-            
+
+
 class Spectrum3d:
     """ Fits cube class for data exploration, analysis, modelling.
-   
+
    Arguments:
         inst: Instrument that produced the spectrum (optional, default=MUSE)
         filen: Filename of fits data cube
         target: Target of observation (for output file)
-        
+
     Methods:
         setFiles: Sets fits files
         setRedshift: Given an redshift z, sets cosmological parameters
@@ -104,8 +104,8 @@ class Spectrum3d:
         fitsout: write a given plane into a fits file
         fitsin: read a given fits file into a plane
     """
-    
-    
+
+
     def __init__(self, filen=None, inst='MUSE', target='', verbose=0):
         self.inst = inst
         self.z = None
@@ -129,7 +129,7 @@ class Spectrum3d:
         """ Uses pyfits to set the header, data and error as instance attributes.
         The fits file should have at least two extension, where the first containst
         the data, the second the variance. Returns nothing.
-        
+
         Parameters
         ----------
         filen : str
@@ -170,13 +170,13 @@ class Spectrum3d:
     def setRedshift(self, z):
         """ Setting luminosity distance and angular seperation here, provided
         a given redshift z. Returns nothing.
-        
+
         Parameters
         ----------
         z : float
             required, this is the redshift of the source
         """
-        
+
         LD, angsep = LDMP(z, v=2)
         logger.info('Luminosity distance at z=%.4f: %.2f MPc' %(z, LD))
         logger.info('Luminosity distance at z=%.4f: %.2e cm' %(z, LD * 3.0857E24))
@@ -187,12 +187,12 @@ class Spectrum3d:
 
 
     def ebvGal(self, ebv = '', rv=3.08):
-        """ If user does not provide ebv, it uses the header information of the 
+        """ If user does not provide ebv, it uses the header information of the
         pointing to obtain the Galactic
         foreground reddening from IRSA. These are by default the Schlafly and
-        Finkbeiner values. Immediatly dereddens the data and error using rv 
+        Finkbeiner values. Immediatly dereddens the data and error using rv
         (default 3.08) in place. Returns nothing.
-        
+
         Parameters
         ----------
         ebv : float
@@ -200,11 +200,11 @@ class Spectrum3d:
         rv : float
             default 3.08, total to selective reddening RV
         """
-        
+
         if ebv == '':
             ra, dec = self.headprim['RA'], self.headprim['DEC']
             ebv, std, ref, av = getebv(ra, dec, rv)
-        ebvcorr = ccmred(self.wave, ebv, rv)    
+        ebvcorr = ccmred(self.wave, ebv, rv)
         logger.info('Dereddening data using MW E_B-V = %.3f mag' %ebv)
         self.data *= ebvcorr[:,np.newaxis, np.newaxis]
         self.erro *= ebvcorr[:,np.newaxis, np.newaxis]
@@ -214,7 +214,7 @@ class Spectrum3d:
     def ebvCor(self, line, rv=3.08, redlaw='mw'):
         """ Uses a the instance attribut ebvmap, the previously calculated map
         of host reddening to calulate a correction map for a given line.
-        
+
         Parameters
         ----------
         line : str
@@ -223,11 +223,11 @@ class Spectrum3d:
             default 3.08, total to selective reddening RV
         redlaw : str
             default mw, assumed reddening law
-            
+
         Returns
         -------
         ebvcorr : np.array
-            The correction map to be applied to the linefluxes to correct 
+            The correction map to be applied to the linefluxes to correct
             for the galaxy's dust absorption
         """
 
@@ -244,15 +244,15 @@ class Spectrum3d:
 
     def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7):
         """ Uses synthetic photometry at a given position in a given band at a
-        given magnitude to check the flux calibration of the spectrum. 
+        given magnitude to check the flux calibration of the spectrum.
         Returns nothing.
-        
+
         Parameters
         ----------
         mag : float
             default '', required magnitude of comparison
         band : str
-            default r, photometric filter. VRI are assumed to be in Vega, griz 
+            default r, photometric filter. VRI are assumed to be in Vega, griz
             in the AB system
         ra : float
             default None, Right Ascension of comparison star
@@ -265,10 +265,10 @@ class Spectrum3d:
 
         ABcorD = {'g':-0.062, 'V':0.00, 'r':0.178,
                  'R':0.21, 'i':0.410, 'I':0.45, 'z':0.543}
-        wls = {'g': [3856.2, 5347.7], 'r': [5599.5, 6749.0], 'i': [7154.9, 8156.6], 
-           'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4], 
+        wls = {'g': [3856.2, 5347.7], 'r': [5599.5, 6749.0], 'i': [7154.9, 8156.6],
+           'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4],
            'I': [7210., 8750.], 'F814': [6884.0, 9659.4], 'z': [8250.0, 9530.4]}
-        
+
         if band in 'VRI':
             mag = mag + ABcorD[band]
         if ra != None and dec != None:
@@ -277,8 +277,8 @@ class Spectrum3d:
             wl, spec, err = self.extrSpec(ra = ra, dec = dec, radius = radius)
         else:
             wl, spec, err = self.extrSpec(total=True)
-          
-        bandsel = (wl > wls[band][0]) * (wl < wls[band][1]) 
+
+        bandsel = (wl > wls[band][0]) * (wl < wls[band][1])
         avgflux = np.nanmedian(spec[bandsel])*1E-20
         avgwl = np.nanmedian(wl[bandsel])
         fluxspec = ergJy(avgflux, avgwl)
@@ -292,7 +292,7 @@ class Spectrum3d:
         factors at a given wavelength, and modifies the data with the derived
         correction curve. Returns nothing, but modifies data and error instance
         attribute in place.
-        
+
         Parameters
         ----------
         deg : int
@@ -302,7 +302,7 @@ class Spectrum3d:
         if self.scale != []:
             sfac = np.array(self.scale)[:,1]
             wls = np.array(self.scale)[:,0]
-    
+
             b = np.polyfit(x=wls, y=sfac, deg=deg)
             logger.info('Scaling spectrum by ploynomial of degree '\
                        + '%i to %i photometric points' %(deg, len(sfac)))
@@ -345,14 +345,14 @@ class Spectrum3d:
         a Chabrier 2003 IMF, and corrects for host intrinsic E_B-V if the map
         has previously been calculated. No Parameters. Requires the redshift to
         be set, to calculate the luminosity distance.
-        
+
         Returns
         -------
             sfrmap : np.array
-                Contains the star-formation rate map density, based on Halpha flux 
+                Contains the star-formation rate map density, based on Halpha flux
                 values (corrected for galaxy E_B-V if applicable). Units is
                 M_sun per year per kpc**2. Note the per kpc**2.
-        """  
+        """
         logger.info( 'Calculating SFR map')
         haflux = self.extractPlane(line='Ha', sC=1, meth='sum')
         halum = 4 * np.pi * self.LDMP**2 * haflux * 1E-20
@@ -368,7 +368,7 @@ class Spectrum3d:
         """ Uses strong line diagnostics to calculate an oxygen abundance map
         based on spaxels. Extracts fits the necessary line fluxes and then uses
         the method defined through meth to calculate 12+log(O/H)
-        
+
         Parameters
         ----------
             meth : str
@@ -383,7 +383,7 @@ class Spectrum3d:
         -------
             ohmap : np.array
                 Contains the values of 12 + log(O/H) for the given method
-        """        
+        """
 
         logger.info( 'Calculating oxygen abundance map')
         ha = self.extractPlane(line='Ha', sC=1, meth='sum')
@@ -392,15 +392,15 @@ class Spectrum3d:
         nii = self.extractPlane(line='NII', sC=1, meth='sum')
         siia = self.extractPlane(line='SIIa', sC=1, meth='sum')
         siib = self.extractPlane(line='SIIb', sC=1, meth='sum')
-        
+
         o3n2 = np.log10((oiii/hb)/(nii/ha))
         n2 = np.log10(nii/ha)
         s2 = np.log10(nii/(siia+siib)) + 0.264*np.log10(nii/ha)
-        
+
         if meth in ['o3n2', 'O3N2', 'PP04']:
             ohmap = 8.73 - 0.32 * o3n2
         if meth in ['n2', 'NII']:
-            ohmap = 9.37 + 2.03*n2 + 1.26*n2**2 + 0.32*n2**3 
+            ohmap = 9.37 + 2.03*n2 + 1.26*n2**2 + 0.32*n2**3
         if meth in ['M13']:
             ohmap = 8.533 - 0.214 * o3n2
         if meth in ['M13N2']:
@@ -415,14 +415,14 @@ class Spectrum3d:
 
     def getIon(self):
         """ Uses the ratio between a collisionally excited line ([OIII]5007)
-        and the recombination line Hbeta as a tracer of ionization/excitation        
-                     
+        and the recombination line Hbeta as a tracer of ionization/excitation
+
         Returns
         -------
         ionmap : np.array
             Contains the values of [OIII]/Hbeta
-        """           
-        
+        """
+
         logger.info( 'Calculating [OIII]/Hbeta map')
         hbflux = self.extractPlane(line='Hb', sC = 1, meth = 'sum')
         oiiiflux = self.extractPlane(line='OIII', sC = 1, meth = 'sum')
@@ -443,13 +443,13 @@ class Spectrum3d:
                 Velocity width in km/s around which to sum the line flux
                 default 100 kms (corresponds to an interval of +/- 200 km/s
                 to be extracted)
-                     
+
         Returns
         -------
             ewmap : np.array
                 Equivalent width in AA for the given line
-        """       
-        
+        """
+
         logger.info( 'Calculating map with equivalence width of line %s' %line)
         # Get line fluxes
         flux = self.extractPlane(line=line, sC = 1, meth = 'sum')
@@ -493,7 +493,7 @@ class Spectrum3d:
             snb : float
                 Signal to noise ratio cut of the bright lines, [OIII] and Halpha
                 detault (5)
-        """       
+        """
 
         logger.info( 'Deriving BPT diagram')
         ha = self.extractPlane(line='ha', sC = 1)
@@ -506,13 +506,13 @@ class Spectrum3d:
         hbe = self.extractPlane(line='hb', meth = 'error')
         sn1, sn2, sn3, sn4 = nii/niie, ha/hae, oiii/oiiie, hb/hbe
         sel = (sn1 > snf) * (sn2 > snb) * (sn3 > snb) * (sn4 > snf)
-        
+
         niiha = np.log10(nii[sel].flatten()/ha[sel].flatten())
         oiiihb = np.log10(oiii[sel].flatten()/hb[sel].flatten())
-        
+
         # The rest is just for the plot
         bins = [120,120]
-        xyrange = [[-1.5,0.5],[-1.2,1.2]] 
+        xyrange = [[-1.5,0.5],[-1.2,1.2]]
         hh, locx, locy = scipy.histogram2d(niiha, oiiihb, range=xyrange, bins=bins)
         thresh = 4
         hh[hh < thresh] = np.nan
@@ -522,30 +522,30 @@ class Spectrum3d:
         ax1 = fig.add_subplot(1,1,1)
         ax1.imshow(np.flipud(hh.T), alpha = 0.7, aspect=0.7,
                extent=np.array(xyrange).flatten(), interpolation='none')
-        ax1.plot(np.log10(np.nansum(nii[sel])/np.nansum(ha[sel])), 
-                 np.log10(np.nansum(oiii[sel])/np.nansum(hb[sel])), 'o', ms = 10, 
-                 color = 'black', mec = 'grey', mew=2)     
-        ax1.plot(np.log10(np.nansum(nii)/np.nansum(ha)), 
-                 np.log10(np.nansum(oiii)/np.nansum(hb)), 'o', ms = 10, 
-                 color = 'firebrick', mec = 'white', mew=2)   
+        ax1.plot(np.log10(np.nansum(nii[sel])/np.nansum(ha[sel])),
+                 np.log10(np.nansum(oiii[sel])/np.nansum(hb[sel])), 'o', ms = 10,
+                 color = 'black', mec = 'grey', mew=2)
+        ax1.plot(np.log10(np.nansum(nii)/np.nansum(ha)),
+                 np.log10(np.nansum(oiii)/np.nansum(hb)), 'o', ms = 10,
+                 color = 'firebrick', mec = 'white', mew=2)
 
         kf3 = np.arange(-1.7, 1.2, 0.01)
         kf0 = np.arange(-1.7, 0.0, 0.01)
 
-        x = -0.596*kf3**2 - 0.687 * kf3 -0.655  
+        x = -0.596*kf3**2 - 0.687 * kf3 -0.655
         kfz0 = 0.61/((kf0)-0.02-0.1833*0)+1.2+0.03*0
 
         # SDSS ridgeline
-        ax1.plot(x, kf3,  '-', lw = 1.5, color = '0.0')             
-        # AGN/SF discrimination at z = 0         
-        ax1.plot(kf0, kfz0, '--', lw = 2.5, color = '0.2')                 
+        ax1.plot(x, kf3,  '-', lw = 1.5, color = '0.0')
+        # AGN/SF discrimination at z = 0
+        ax1.plot(kf0, kfz0, '--', lw = 2.5, color = '0.2')
         ax1.set_xlim(-1.65, 0.3)
         ax1.set_ylim(-1.0, 1.0)
 
-        ax1.set_xlabel(r'$\log({[\mathrm{NII}]\lambda 6584/\mathrm{H}\alpha})$', 
+        ax1.set_xlabel(r'$\log({[\mathrm{NII}]\lambda 6584/\mathrm{H}\alpha})$',
                    {'color' : 'black', 'fontsize' : 15})
-        ax1.set_ylabel(r'$\log({[\mathrm{OIII}]\lambda 5007/\mathrm{H}\beta})$', 
-                   {'color' : 'black', 'fontsize' : 15})  
+        ax1.set_ylabel(r'$\log({[\mathrm{OIII}]\lambda 5007/\mathrm{H}\beta})$',
+                   {'color' : 'black', 'fontsize' : 15})
 
         plt.savefig('%s_%s_BPT.pdf' %(self.inst, self.target))
         plt.close(fig)
@@ -562,7 +562,7 @@ class Spectrum3d:
         -------
             ebvmap : np.array
                 2-d map of the color excess E_B-V
-        """  
+        """
 
         logger.info( 'Calculating E_B-V map')
         Cha, Chb, Chg, Chd = 1, 0.348, 0.162, 0.089
@@ -587,14 +587,14 @@ class Spectrum3d:
                 Lower wavelength
             wl2 : float
                 Upper wavelength
-       
+
         Returns
         -------
             subcube : np.array
                 2-d subcube between wl1 and wl2
             subwl : np.array
                 Wavelengths of the subcube
-        """  
+        """
 
         pix1 = self.wltopix(wl1)
         pix2 = max(pix1+1, self.wltopix(wl2)+1)
@@ -615,9 +615,9 @@ class Spectrum3d:
                 Lower wavelength
             wl2 : float
                 Upper wavelength
-            z : float 
+            z : float
                 Redshift (default None)
-            line : str 
+            line : str
                 Emission line to extract (default None)
             method : str
                 Method to cobine, default sum, options average, median, error
@@ -625,14 +625,14 @@ class Spectrum3d:
             dv : float
                 Velocity width in km/s around which to sum the line flux
                 default 100 kms (corresponds to an interval of +/- 200 km/s
-                to be extracted)   
+                to be extracted)
             sC : int
                 subtract the continuum in the extracted plane (default 0 = no)
         Returns
         -------
             currPlane : np.array
                 2-d plane combining the data between wl1 and wl2
-        """  
+        """
 
         if z == None: z = self.z
         if z == None: z = 0
@@ -670,7 +670,7 @@ class Spectrum3d:
             wl1 = wlline - 2*dv/c*wlline
             wl2 = wlline + 2*dv/c*wlline
             logger.info( 'Summing data with %.1f < lambda < %.1f ' %(wl1, wl2))
-        
+
         pix1 = self.wltopix(wl1)
         pix2 = max(pix1+1, self.wltopix(wl2))
         cpix1 = self.wltopix(cont1)
@@ -697,7 +697,7 @@ class Spectrum3d:
 
 
     def extrSpec(self, ra=None, dec=None, x=None, y=None, radius=None,
-                 method='sum', total=False, ell=None, exmask=None, 
+                 method='sum', total=False, ell=None, exmask=None,
                  pexmask=False):
         """Extracts a single spectrum at a given position.
         If neither radius, total or ell is given, extracts a single spaxel at
@@ -711,20 +711,20 @@ class Spectrum3d:
                 Right ascension in cube of central pixel
             dec : float
                 Declination in cube of central pixel
-            x : int 
+            x : int
                 x pixel value in cube of central pixel
-            y : int 
+            y : int
                 y pixel value in cube of central pixel
             radius : float
                 Radius around central pixel to extract in arcsec
-            method : str 
+            method : str
                 How to extract multiple pixels
             total : bool
-                Whether to extract the full cube. If an object mask is present, 
-                i.e., has been created previously, then it only extracts the 
+                Whether to extract the full cube. If an object mask is present,
+                i.e., has been created previously, then it only extracts the
                 spaxels in the object mask.
             ell : list
-                Parameters of the ellipse for extraction. Ellipse is given in 
+                Parameters of the ellipse for extraction. Ellipse is given in
                 pixel coordinates with format [posx, posy, a, b, theta] where
                 posx, posy are the central pixels, a, b the semi-major and minor
                 axis length, and theta the rotation angle of the ellipse.
@@ -743,7 +743,7 @@ class Spectrum3d:
                 Flux values of extracted/combined spaxels
             error : np.array
                 Error values of extracted/combined spaxels
-        """  
+        """
 
         if ra != None and dec != None:
             try:
@@ -765,11 +765,11 @@ class Spectrum3d:
             logger.info( 'Creating extraction mask with radius %i pixel' %radius)
             radpix = radius / self.pixsky
             x, y = np.indices(self.data.shape[0:2])
-            
+
             exmask = np.round(((x - posy)**2  +  (y - posx)**2)**0.5)
             exmask[exmask <= radpix] = 1
             exmask[exmask > radpix] = 0
-        
+
         elif total == False and ell != None:
             # Ellipse is in pixel coordinates
             logger.info( 'Creating extraction ellipse')
@@ -827,22 +827,22 @@ class Spectrum3d:
         coordinates of a source in the MUSE cube with actual coordinates ra, dec.
         Returns nothing, but changes the header keywords CRVAL1 and CRVAL2 in
         the instance attribute head. Can only correct a translation mismath,
-        no rotation, plate scale changes (should be low). Length of 
+        no rotation, plate scale changes (should be low). Length of
         starras, stardecs, ras, decs must of course be equalt for the code to
         make sense.
-        
+
         Parameters
         ----------
             starras : list
                 List of right ascension positions in cube of reference stars
             stardecs : list
                 List of declination positions in cube of reference stars
-            ras : list 
+            ras : list
                 List of right ascension true positions of reference stars
-            decs : list 
+            decs : list
                 List of declinations true positions of reference stars
         """
-        
+
         if len(starras) != len(stardecs) or len(ras) != len(decs) or \
            len(starras) != len(ras):
             logger.error('Input lists must be of equal length')
@@ -874,7 +874,7 @@ class Spectrum3d:
 
     def pixtosky(self, x, y):
         """ Converts x, y positions into ra, dec in degree """
-        
+
         dx = x - self.head['CRPIX1']
         dy = y - self.head['CRPIX2']
         decdeg = self.head['CRVAL2'] + self.head['CD2_2'] * dy
@@ -885,7 +885,7 @@ class Spectrum3d:
 
     def skytopix(self, ra, dec):
         """ Converts ra, dec positions in degrees into x, y """
-        
+
         y = (dec - self.head['CRVAL2']) / self.head['CD2_2'] + self.head['CRPIX2']
         x = ((ra - self.head['CRVAL1']) / self.head['CD1_1']) *\
             np.cos( dec * np.pi/180.) + self.head['CRPIX1']
@@ -915,22 +915,22 @@ class Spectrum3d:
         line with a Gaussian, to derive central positions and Gaussian widths.
         Should be parallelized, but doesnt work as the output cube is scrambled
         when using more then 1 thread. Would love to know why.
-        
+
         Parameters
         ----------
             line : str
                 Emission line to use for velocity map (default Halpha)
             dv : float
-                Velocity width in km/s around which to fit is performed 
-                default 250 kms 
- 
+                Velocity width in km/s around which to fit is performed
+                default 250 kms
+
         Returns
         -------
             velmap : np.array
                 Velocity map in km/s difference to the central value
 
         """
-        
+
         logger.info('Calculating valocity map')
         if line in ['Halpha', 'Ha', 'ha']:
             wlline = RESTWL['ha'] * (1 + self.z)
@@ -963,7 +963,7 @@ class Spectrum3d:
             wlmean = np.nanmedian(meanmap[self.objmask == 1])
         else:
             wlmean = np.nansum(meanmap / meanmape**2) / np.nansum(1./meanmape**2)
-        
+
         velmap = (meanmap - wlmean) / wlmean * spc.c/1E3
         logger.info('Velocity map took %.1f s' %(time.time() - t1))
         velmap[snmap < 2] = np.nan
@@ -980,7 +980,7 @@ class Spectrum3d:
         ax = fig.add_subplot(1, 1, 1)
         ax.yaxis.set_major_formatter(plt.FormatStrFormatter(r'$%.1f$'))
         ax.xaxis.set_major_formatter(plt.FormatStrFormatter(r'$%.1f$'))
-        ax.errorbar(x, y, xerr = xerr, yerr=yerr, fmt = 'o', 
+        ax.errorbar(x, y, xerr = xerr, yerr=yerr, fmt = 'o',
                     color = 'blue', alpha = 0.2, ms = 0.5,
                     # rasterized = raster,
                     mew = 2, zorder = 1)
@@ -1055,7 +1055,7 @@ class Spectrum3d:
                # This is somewhat arbitrary
                if np.mean(samereg) < 0.6:
                    break
-            
+
             # Save info on the specific region in dict
             if len(h2save) > minpix:
                 h2count += 1
@@ -1111,7 +1111,7 @@ class Spectrum3d:
             psfsize = plt.Circle((30,30), psfrad, color='grey',
                                  alpha=0.7, **kwargs)
             ax.add_patch(psfsize)
-            plt.text(30, 38, r'PSF',
+            plt.text(30, 44, r'PSF',
                fontsize = 16, ha = 'center', va = 'center',  **kwargs)
 
         if ra != None and dec != None:
@@ -1121,7 +1121,7 @@ class Spectrum3d:
             ax.add_patch(psfsize)
             psfsize = plt.Circle((posx,posy), psfrad, lw=1.5, fill=False,
                                  color='black', **kwargs)
-            ax.add_patch(psfsize)            
+            ax.add_patch(psfsize)
             plt.text(posx, posy-12, source,
                fontsize = 20, ha = 'center', va = 'center',  **kwargs)
 
@@ -1132,7 +1132,7 @@ class Spectrum3d:
                 bar.set_label(label, size = 16)
                 bar.ax.tick_params(labelsize=16)
             bar.update_ticks()
-    
+
         [xticks, xlabels], [yticks, ylabels] = self.createaxis()
         plt.xticks(rotation=50)
         plt.yticks(rotation=50)
@@ -1151,10 +1151,10 @@ class Spectrum3d:
 
     def rgb(self, planes, minval=None, maxval=None, scale='lin'):
         """ Creates and rgb image from three input planes (bgr) """
-        
+
         if len(planes) != 3:
             logger.error('There must be three input planes')
-            raise SystemExit           
+            raise SystemExit
         if (planes[0].shape != planes[1].shape) or (planes[1].shape != planes[2].shape):
             logger.error('Planes must be equal shape')
             raise SystemExit
@@ -1182,11 +1182,11 @@ class Spectrum3d:
         return img
 
 
-      
+
     def fitsout(self, plane, smoothx=0, smoothy=0, name=''):
         """ Write the given plane into a fits file. Uses header of the original
         data. Returns nothing, but write a fits file.
-        
+
         Parameters
         ----------
         plane : np.array
@@ -1215,11 +1215,11 @@ class Spectrum3d:
         hdu.append(pyfits.PrimaryHDU(header = self.headprim))
         hdu.append(pyfits.ImageHDU(data = plane, header = headimg))
         hdu.writeto(planeout)
-        
-        
+
+
     def fitsin(self, fits):
         """Read in a fits file and retun the data
-        
+
         Parameters
         ----------
         fits : str
@@ -1229,43 +1229,44 @@ class Spectrum3d:
         ----------
         data : np.array
             data arry of input fits file
-        """   
-        
+        """
+
         data = pyfits.getdata(fits)
         return data
-        
-        
+
+
 
 
     def createaxis(self):
         """ WCS axis helper method """
-        
+
         if True:
             minra, mindec = self.pixtosexa(self.head['NAXIS1']-20, 20)
             maxra, maxdec = self.pixtosexa(20, self.head['NAXIS2']-20)
-            if self.head['NAXIS1'] > 500: 
+
+            if self.head['NAXIS1'] > 500:
                 dx = 30
-            else: 
+            else:
                 dx = 20
-            if self.head['NAXIS2'] > 500: 
+            if self.head['NAXIS2'] > 500:
                 dy = 2
-            else: 
+            else:
                 dy = 1
-            
+
             minram = int(minra.split(':')[1])
             minrah = int(minra.split(':')[0])
             minras = np.ceil(float(minra.split(':')[-1]))
-    
+
             axpx, axlab, aypx, aylab = [], [], [], []
 
             def az(numb):
-                if 0 <= numb < 10: 
+                if 0 <= numb < 10:
                     return '0%i' %numb
                 elif -10 < numb < 0:
                     return '-0%i' %np.abs(numb)
-                else: 
+                else:
                     return '%i' %numb
-                    
+
             while True:
                 if minras >= 60:
                     minram += 1
@@ -1283,7 +1284,9 @@ class Spectrum3d:
                     axpx.append(xpx)
                     axlab.append(r'$%s^{\rm{h}}%s^{\rm{m}}%s^{\rm{s}}$'%tuple(axra.split(':')) )
                 minras += dy
-
+            
+            if self.headprim['DEC'] > 0:
+                maxdec = mindec
             maxdem = int(maxdec.split(':')[1])
             maxdeh = int(maxdec.split(':')[0])
             maxdes = np.round(float(maxdec.split(':')[-1]) + 10, -1)
@@ -1295,7 +1298,7 @@ class Spectrum3d:
                 if maxdem >= 60:
                     maxdeh += 1
                     maxdem -= 60
-                    
+
                 axdec = '%s:%s:%s' %(az(maxdeh), az(maxdem), az(maxdes))
                 ypx = self.sexatopix(minra, axdec)[1]
                 if ypx > self.head['NAXIS2'] or ypx < 0:
@@ -1304,6 +1307,5 @@ class Spectrum3d:
                     aypx.append(ypx)
                     aylab.append(r"$%s^\circ%s'\,%s''$"%tuple(axdec.split(':')))
                 maxdes += dx
-            
+
             return [axpx, axlab], [aypx, aylab]
-        
