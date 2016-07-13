@@ -28,6 +28,7 @@ from MUSEspec.astro import (LDMP, Avlaws, airtovac, ergJy,
 
 from MUSEspec.functions import (blur_image, deg2sexa, sexa2deg, ccmred)
 from MUSEspec.fitter import onedgaussfit
+from MUSEspec.starlight import StarLight
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
@@ -160,7 +161,7 @@ class Spectrum3d:
         if self.target == '':
             self.target = self.headprim['OBJECT']
         self.fluxunit = self.head['BUNIT']
-        self.output = filen.split('.fits')[0]
+        self.output = self.headprim['OBJECT']
         self.base, self.ext = filen.split('.fits')[0], '.fits'
         logger.info( 'Fits cube loaded %s' %(filen))
         logger.info( 'Wavelength range %.1f - %.1f (vacuum)' %(self.wave[0], self.wave[-1]))
@@ -395,7 +396,7 @@ class Spectrum3d:
 
         o3n2 = np.log10((oiii/hb)/(nii/ha))
         n2 = np.log10(nii/ha)
-        s2 = np.log10(nii/(siia+siib)) + 0.264*np.log10(nii/ha)
+        s2 = np.log10(nii/(siia+siib)) + 0.264 * np.log10(nii/ha)
 
         if meth in ['o3n2', 'O3N2', 'PP04']:
             ohmap = 8.73 - 0.32 * o3n2
@@ -424,8 +425,8 @@ class Spectrum3d:
         """
 
         logger.info( 'Calculating [OIII]/Hbeta map')
-        hbflux = self.extractPlane(line='Hb', sC = 1, meth = 'sum')
-        oiiiflux = self.extractPlane(line='OIII', sC = 1, meth = 'sum')
+        hbflux = self.extractPlane(line='Hb', sC=1, meth='sum')
+        oiiiflux = self.extractPlane(line='OIII', sC=1, meth='sum')
         ionmap = oiiiflux/hbflux
         return ionmap
 
@@ -452,7 +453,7 @@ class Spectrum3d:
 
         logger.info( 'Calculating map with equivalence width of line %s' %line)
         # Get line fluxes
-        flux = self.extractPlane(line=line, sC = 1, meth = 'sum')
+        flux = self.extractPlane(line=line, sC=1, meth='sum')
         # Set continuum range, make sure no other emission line lies within
         if line in ['Ha', 'ha', 'Halpha']:
             contmin = RESTWL['niia'] * (1+self.z) - 2*dv/c*RESTWL['niia']
@@ -496,13 +497,13 @@ class Spectrum3d:
         """
 
         logger.info( 'Deriving BPT diagram')
-        ha = self.extractPlane(line='ha', sC = 1)
+        ha = self.extractPlane(line='ha', sC=1)
         hae = self.extractPlane(line='ha', meth = 'error')
-        oiii = self.extractPlane(line='oiiib', sC = 1)
+        oiii = self.extractPlane(line='oiiib', sC=1)
         oiiie = self.extractPlane(line='oiiib', meth = 'error')
-        nii = self.extractPlane(line='nii', sC = 1)
+        nii = self.extractPlane(line='nii', sC=1)
         niie = self.extractPlane(line='nii', meth = 'error')
-        hb = self.extractPlane(line='hb', sC = 1)
+        hb = self.extractPlane(line='hb', sC=1)
         hbe = self.extractPlane(line='hb', meth = 'error')
         sn1, sn2, sn3, sn4 = nii/niie, ha/hae, oiii/oiiie, hb/hbe
         sel = (sn1 > snf) * (sn2 > snb) * (sn3 > snb) * (sn4 > snf)
@@ -696,7 +697,8 @@ class Spectrum3d:
 
 
 
-    def extrSpec(self, ra=None, dec=None, x=None, y=None, radius=None,
+    def extrSpec(self, ra=None, dec=None, x=None, y=None, 
+                 radius=None, size= None,
                  method='sum', total=False, ell=None, exmask=None,
                  pexmask=False):
         """Extracts a single spectrum at a given position.
@@ -717,6 +719,8 @@ class Spectrum3d:
                 y pixel value in cube of central pixel
             radius : float
                 Radius around central pixel to extract in arcsec
+            size : integer
+                Size of square around central pixel to extract in pixel
             method : str
                 How to extract multiple pixels
             total : bool
@@ -755,20 +759,37 @@ class Spectrum3d:
         elif total == False:
             posx, posy = x + 1, y + 1
 
-        if radius == None and total == False and ell==None:
+        if radius==None and size==None and total==False and ell==None:
             logger.info('Extracting pixel %i, %i' %(posx, posy))
             spec = np.array(self.data[:,posy-1,posx-1])
             err  = np.array(self.erro[:,posy-1,posx-1])
             return self.wave, spec, err
 
-        if total == False and radius != None:
-            logger.info( 'Creating extraction mask with radius %i pixel' %radius)
+        if total==False and radius!=None:
+            logger.info('Creating extraction mask with radius %i arcsec' %radius)
             radpix = radius / self.pixsky
             x, y = np.indices(self.data.shape[0:2])
 
             exmask = np.round(((x - posy)**2  +  (y - posx)**2)**0.5)
             exmask[exmask <= radpix] = 1
             exmask[exmask > radpix] = 0
+
+        if total == False and size != None:
+            # Check this
+            logger.info('Extracting spectrum with size %ix%i pixel' \
+                %(2*size+1, 2*size+1))
+            miny = max(0, posy-1-size)
+            maxy = min(self.leny, posy+size)
+            minx = max(0, posx-1-size)
+            maxx = min(self.lenx, posx+size)
+
+            spec = np.array(self.data[:, miny:maxy, minx:maxx])
+            err  = np.array(self.erro[:, miny:maxy, minx:maxx])
+
+            rspec = np.nansum(np.nansum(spec, axis = 1), axis=1)
+            rerr = np.nansum(np.nansum(spec**2, axis = 1), axis=1)**0.5
+
+            return self.wave, rspec, rerr
 
         elif total == False and ell != None:
             # Ellipse is in pixel coordinates
@@ -828,7 +849,7 @@ class Spectrum3d:
         Returns nothing, but changes the header keywords CRVAL1 and CRVAL2 in
         the instance attribute head. Can only correct a translation mismath,
         no rotation, plate scale changes (should be low). Length of
-        starras, stardecs, ras, decs must of course be equalt for the code to
+        starras, stardecs, ras, decs must of course be equal for the code to
         make sense.
 
         Parameters
@@ -910,7 +931,7 @@ class Spectrum3d:
 
 
 
-    def velMap(self, line='ha', dv=250):
+    def velMap(self, line='ha', dv=250, R=2500):
         """Produces a velocity map. Fits the emission line profile of the given
         line with a Gaussian, to derive central positions and Gaussian widths.
         Should be parallelized, but doesnt work as the output cube is scrambled
@@ -923,12 +944,16 @@ class Spectrum3d:
             dv : float
                 Velocity width in km/s around which to fit is performed
                 default 250 kms
-
+            R : float
+                Resolving power R in dimensionless units (default 2500)
         Returns
         -------
             velmap : np.array
                 Velocity map in km/s difference to the central value
-
+            sigmap : np.array
+                Map of line broadening in km/s (not corrected for resulotion)
+            R : float
+                Resolution in km/s (sigma)
         """
 
         logger.info('Calculating valocity map')
@@ -965,9 +990,13 @@ class Spectrum3d:
             wlmean = np.nansum(meanmap / meanmape**2) / np.nansum(1./meanmape**2)
 
         velmap = (meanmap - wlmean) / wlmean * spc.c/1E3
+        sigmamap = (sigmamap / meanmap) * spc.c/1E3
         logger.info('Velocity map took %.1f s' %(time.time() - t1))
         velmap[snmap < 2] = np.nan
-        return np.array(velmap)
+        sigmamap[snmap < 2] = np.nan
+        Rsig = spc.c/(1E3 * R * 2 * (2*np.log(2))**0.5)
+
+        return np.array(velmap), np.array(sigmamap), Rsig
 
 
 
@@ -991,7 +1020,7 @@ class Spectrum3d:
 
 
 
-    def plotspec(self, x, y, err=None, name=''):
+    def plotspec(self, x, y, err=None, name='', div=1E3):
         """ Simple spectrum bar plot convinience method """
 
         fig = plt.figure(figsize = (7,4))
@@ -999,11 +1028,15 @@ class Spectrum3d:
         ax = fig.add_subplot(1, 1, 1)
 #        ax.yaxis.set_major_formatter(plt.FormatStrFormatter(r'$%f$'))
         ax.xaxis.set_major_formatter(plt.FormatStrFormatter(r'$%i$'))
-        ax.plot(x, y/1E3, color = 'grey', alpha = 1.0, # rasterized = raster,
+        ax.plot(x, y/div, color = 'black', alpha = 1.0, # rasterized = raster,
+                    drawstyle = 'steps-mid',  lw = 0.8, zorder = 1)
+        if err != None:
+            ax.plot(x, err/div, color = 'grey', alpha = 1.0, # rasterized = raster,
                     drawstyle = 'steps-mid',  lw = 0.6, zorder = 1)
         ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$')
         ax.set_xlabel(r'$\rm{Observed\,wavelength\, (\AA)}$')
-        ax.set_ylim(0)
+        if div == 1E3:
+            ax.set_ylim(0)
         ax.set_xlim(self.wave[0], self.wave[-1])
         plt.savefig('%s_%s_%sspec.pdf' %(self.inst, self.target, name))
         plt.close(fig)
@@ -1181,6 +1214,87 @@ class Spectrum3d:
             img[:,:,i] = wp
         return img
 
+
+
+    def starlight(self, ascii, plot=1):
+        """ Convinience function to run starlight on an ascii file returning its
+        spectral fit and bring it into original rest-frame wavelength scale again
+        """
+        logger.info('Starting starlight')
+        t1 = time.time()
+        sl = StarLight(filen=ascii)
+        datawl, data, stars, norm =  sl.modOut(plot=0)
+        logger.info('Running starlight took %.2f s' %(time.time() - t1))
+        s = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+self.z), 
+                                                        data*1E3*norm/(1+self.z))
+        t = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+self.z), 
+                                                        stars*1E3*norm/(1+self.z))
+        return s(self.wave), t(self.wave)
+
+
+
+    def substarlight(self, x, y, size=0):
+        """ Convinience function to subtract a starlight fit based on a single
+        spectrum from many spaxels
+        """
+        
+        wl, spec, err = self.extrSpec(x=x, y=y, size=size)
+        ascii = self.asciiout(wl=wl, spec=spec, err=err, 
+                              name='%s_%s_%s' %(x, y, size))
+        data, stars = self.starlight(ascii=ascii)
+        rs = data/spec
+        logger.info('Resampling accuracy %.3f +/- %.3f' \
+            %(np.nanmedian(rs), np.nanstd(rs[1:-1])))
+        
+
+    def asciiout(self, wl, spec, err=None, resample=1, name=''):
+        """ Write the given spectrum into a ascii file. 
+        Returns name of ascii file, writes ascii file.
+
+        Parameters
+        ----------
+        wl : np.array
+            wavelength array
+        spec : np.array
+            spectrum array
+        err : np.array
+            possible error array (default None)
+        resample : int
+            wavelength step in AA to resample
+        name : str
+            Name to use in fits file name
+        """
+        asciiout = '%s_%s.txt' %(self.output, name)
+        if self.z != None:
+            logger.info('Moving to restframe')
+            wls = wl / (1+self.z)
+            spec = spec * (1+self.z) * 1E-3
+            if err != None:
+                err = err * (1+self.z) * 1E-3
+        else:
+            spec *= 1E-20
+            if err != None:
+                err = err * 1E-3
+        outwls = np.arange(int(wls[0]), int(wls[-1]), resample)
+
+        s = sp.interpolate.InterpolatedUnivariateSpline(wls, spec)
+        outspec = s(outwls)
+
+        if err != None:
+            t = sp.interpolate.InterpolatedUnivariateSpline(wls, err)
+            outerr = t(outwls)
+
+        f = open(asciiout, 'w')
+        for i in range(len(outwls)):
+            if err != None:
+                f.write('%.1f %.3f %.3f 0\n' %(outwls[i], outspec[i], outerr[i]))
+            if err == None:
+                f.write('%.1f %.3f\n' %(outwls[i], outspec[i]))            
+        f.close()
+#        logger.info('Writing ascii file took %.2f s' %(time.time() - t1))
+        return asciiout
+        
+    
 
 
     def fitsout(self, plane, smoothx=0, smoothy=0, name=''):
