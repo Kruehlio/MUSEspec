@@ -249,7 +249,7 @@ def subStars(s3d, x, y, size=0, verbose=1):
     ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err, 
                           name='%s_%s_%s' %(x, y, size))
                       
-    data, stars, success = s3d.starlight(ascii=ascii, verbose=0)
+    data, stars, success = runStar(s3d, ascii, verbose=0)
     os.remove(ascii)
     miny, maxy = max(0, y-size), min(s3d.leny-1, y+size+1)
     minx, maxx = max(0, x-size), min(s3d.lenx-1, x+size+1)
@@ -278,6 +278,7 @@ def subStars(s3d, x, y, size=0, verbose=1):
                 s3d.starcube[:, yindx, xindx] = zerospec
     return
     
+    
 def suballStars(s3d, dx=2, nc=None):
     """ Convinience function to subtract starlight fits on the full cube
     """
@@ -290,15 +291,8 @@ def suballStars(s3d, dx=2, nc=None):
 
     for xindx in xindizes:
         for yindx in yindizes:
-            s3d.substarlight(xindx, yindx, dx, verbose=0)
+            subStars(s3d, xindx, yindx, dx, verbose=0)
             
     cubeout(s3d, s3d.starcube, name='star')
     cubeout(s3d.data-s3d.starcube, name='gas')
     logger.info("This took %.2f h" %((time.time()-t1)/3600.))
-
-def pdfout(self, plane, **kwargs):
-    pdfout(self, plane, **kwargs)
-    
-def fitsout(self, plane, **kwargs):
-    fitsout(self, plane, **kwargs)    
-    
