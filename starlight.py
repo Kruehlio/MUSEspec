@@ -113,48 +113,61 @@ class StarLight:
     def modOut(self, plot=1, minwl=4750, maxwl=5150):
         starwl, starfit = np.array([]), np.array([])
         datawl, data, gas, stars = 4*[np.array([])]
+        success, run, norm = 0, 0, 1
 
-        f = open(self.output)
-        output = f.readlines()
-        f.close()
-        for out in output:
-          outsplit =   out.split()
-          if outsplit[1:] == ['[fobs_norm', '(in', 'input', 'units)]']:
-              norm = float(outsplit[0])
-          if len(outsplit) == 4:
-            try:  
-              outsplit = [float(a) for a in outsplit]  
-              if float(outsplit[0]) >= self.minwl:
-                  starfit = np.append(starfit, outsplit[2])
-                  starwl = np.append(starwl, outsplit[0])
-                  if outsplit[3] != -2:
-                      data = np.append(data, outsplit[1])
-                      gas = np.append(gas, outsplit[1]-outsplit[2] )
-                      stars = np.append(stars, outsplit[2])
-                      datawl = np.append(datawl, outsplit[0])                    
-            except ValueError:
-                pass
+        try:
+            f = open(self.output)
+            output = f.readlines()
+            f.close()
+            os.remove(self.sllog)
+            os.remove(self.output)
+            run = 1
+        except IOError:
+            pass
         
-        if plot == 1:
-            sel1 = (datawl > minwl) * (datawl < maxwl)
-            sel2 = (datawl > 6500) * (datawl < 6750)
-            
-            fig1 = plt.figure(figsize = (6,8.4))
-            fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
-            ax1 = fig1.add_subplot(2, 1, 1)
-            ax2 = fig1.add_subplot(2, 1, 2)
-            for ax in [ax1, ax2]:
-                ax.plot(datawl, 0*datawl, '--', color ='grey')
-                ax.plot(datawl, gas, '-', color ='black')
-                ax.plot(datawl, data, '-', color ='firebrick', lw=2)
-                ax.plot(starwl, starfit, '-', color ='green')
-                ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$',
-                           fontsize=18)
-            ax2.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=18)
-            ax1.set_xlim(minwl, maxwl)
-            ax2.set_xlim(6500, 6750)
-            ax1.set_ylim(np.min(gas[sel1]), np.max(data[sel1])*1.05)
-            ax2.set_ylim(np.min(gas[sel2]), np.max(data[sel2])*1.05)
-            fig1.savefig('%s_starlight.pdf' %(self.inst))
-            plt.close(fig1)
-        return datawl, data, stars, norm
+        if run == 1:
+            for out in output:
+              outsplit =   out.split()
+              if outsplit[1:] == ['[fobs_norm', '(in', 'input', 'units)]']:
+                  norm = float(outsplit[0])
+                  success = 1
+              if outsplit[1:] == ['Run', 'aborted:(']:
+                  break
+              if len(outsplit) == 4:
+                try:  
+                  outsplit = [float(a) for a in outsplit]  
+                  if float(outsplit[0]) >= self.minwl:
+                      starfit = np.append(starfit, outsplit[2])
+                      starwl = np.append(starwl, outsplit[0])
+                      if outsplit[3] != -2:
+                          data = np.append(data, outsplit[1])
+                          gas = np.append(gas, outsplit[1]-outsplit[2] )
+                          stars = np.append(stars, outsplit[2])
+                          datawl = np.append(datawl, outsplit[0])                    
+                except ValueError:
+                    pass
+        
+            if plot == 1:
+                sel1 = (datawl > minwl) * (datawl < maxwl)
+                sel2 = (datawl > 6500) * (datawl < 6750)
+                
+                fig1 = plt.figure(figsize = (6,8.4))
+                fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
+                ax1 = fig1.add_subplot(2, 1, 1)
+                ax2 = fig1.add_subplot(2, 1, 2)
+                for ax in [ax1, ax2]:
+                    ax.plot(datawl, 0*datawl, '--', color ='grey')
+                    ax.plot(datawl, gas, '-', color ='black')
+                    ax.plot(datawl, data, '-', color ='firebrick', lw=2)
+                    ax.plot(starwl, starfit, '-', color ='green')
+                    ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$',
+                               fontsize=18)
+                ax2.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=18)
+                ax1.set_xlim(minwl, maxwl)
+                ax2.set_xlim(6500, 6750)
+                ax1.set_ylim(np.min(gas[sel1]), np.max(data[sel1])*1.05)
+                ax2.set_ylim(np.min(gas[sel2]), np.max(data[sel2])*1.05)
+                fig1.savefig('%s_starlight.pdf' %(self.inst))
+                plt.close(fig1)
+                
+        return datawl, data, stars, norm, success

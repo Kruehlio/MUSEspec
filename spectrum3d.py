@@ -9,7 +9,6 @@ matplotlib.use('Agg')
 import pyfits
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patheffects import withStroke
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -23,12 +22,14 @@ import logging
 import sys
 
 from joblib import Parallel, delayed
-from MUSEspec.astro import (LDMP, Avlaws, airtovac, ergJy,
+from .astro import (LDMP, Avlaws, airtovac, ergJy,
                        abflux, getebv)
 
-from MUSEspec.functions import (blur_image, deg2sexa, sexa2deg, ccmred)
-from MUSEspec.fitter import onedgaussfit
-from MUSEspec.starlight import StarLight
+from .functions import (deg2sexa, sexa2deg, ccmred)
+from .fitter import onedgaussfit
+from .starlight import StarLight
+from .io import asciiout, cubeout, pdfout
+
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
@@ -81,8 +82,8 @@ class Spectrum3d:
         getOHsimp: Calculates oxygen abundance map based on strong line diagnostics
         getIon: Calculates [OIII]/Hbeta map as ionization/excitation proxy
         getEW: Calculates equivalent width maps of given line
-        BPT: Spaxels in the Baldwich-Philips-Terlevich diagram
         getEBV: Calculates EB-V maps from Balmer decrement
+        BPT: Spaxels in the Baldwich-Philips-Terlevich diagram
         subCube: Extracts cube cut in wavelength
         extractPlane: Extracts a plane, summed in wavelength
         extrSpec: Extracts a spectrum at given position
@@ -94,16 +95,9 @@ class Spectrum3d:
         sexatopix: Sky coordinates conversion (sexagesimal) to pixel conversion
         pixtosexa: Pixel to sky coordinates conversion (sexagesimal)
         velMap: Calculates velocity map - clumsy, takes ages
-        createaxis: Helper function for plot
-        plotxy: Simple x vs. y scatter plot
-        plotspec: Simple flux vs. wavelength line plot
         hiidetect: HII region detection algorithm (work in progress)
-        pdfout: Plots a 2d-map as pdf
-        fpack: fpacks the output file
         rgb: Provided three planes, creates an RGP image
         scaleCube: Scale cube by polynomial of given degree (default 1)
-        fitsout: write a given plane into a fits file
-        fitsin: read a given fits file into a plane
     """
 
 
@@ -165,6 +159,7 @@ class Spectrum3d:
         self.base, self.ext = filen.split('.fits')[0], '.fits'
         logger.info( 'Fits cube loaded %s' %(filen))
         logger.info( 'Wavelength range %.1f - %.1f (vacuum)' %(self.wave[0], self.wave[-1]))
+        self.starcube = np.zeros(self.data.shape, dtype='>f4')
 
 
 
@@ -288,6 +283,8 @@ class Spectrum3d:
           %(band, fluxref/fluxspec))
         self.scale.append([avgwl, fluxref/fluxspec])
 
+
+
     def scaleCube(self, deg=1):
         """ Fits a polynomial of degree deg to the previously calculated scale-
         factors at a given wavelength, and modifies the data with the derived
@@ -328,6 +325,8 @@ class Spectrum3d:
             logger.warning("Calculate scaling first with checkPhot")
 
 
+
+
     def subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10):
         cont1 = np.nanmedian(self.data[pix1-dx:pix1], axis=0)
         cont2 = np.nanmedian(self.data[pix2:pix2+dx], axis=0)
@@ -341,6 +340,16 @@ class Spectrum3d:
         return np.nanmean(np.array([cont1,cont2]), axis=0)
 
 
+    def getDens(self):
+        """ Derive electron density map, using the [SII] doublet and based on 
+        the model of O'Dell et al. 2013 using Osterbrock & Ferland 2006
+        """
+
+        siia = self.extractPlane(line='SIIa', sC=1, meth='sum')
+        siib = self.extractPlane(line='SIIb', sC=1, meth='sum')
+        logne = 4.705 - 1.9875*siia/siib
+        return 10**logne 
+        
     def getSFR(self):
         """ Uses Kennicut 1998 formulation to convert Ha flux into SFR. Assumes
         a Chabrier 2003 IMF, and corrects for host intrinsic E_B-V if the map
@@ -698,7 +707,7 @@ class Spectrum3d:
 
 
     def extrSpec(self, ra=None, dec=None, x=None, y=None, 
-                 radius=None, size= None,
+                 radius=None, size= None, verbose=1,
                  method='sum', total=False, ell=None, exmask=None,
                  pexmask=False):
         """Extracts a single spectrum at a given position.
@@ -714,9 +723,9 @@ class Spectrum3d:
             dec : float
                 Declination in cube of central pixel
             x : int
-                x pixel value in cube of central pixel
+                x pixel value in cube of central pixel (NB: Python notation)
             y : int
-                y pixel value in cube of central pixel
+                y pixel value in cube of central pixel  (NB: Python notation)
             radius : float
                 Radius around central pixel to extract in arcsec
             size : integer
@@ -757,16 +766,18 @@ class Spectrum3d:
         elif ell != None:
             posx, posy, a, b, theta = ell
         elif total == False:
-            posx, posy = x + 1, y + 1
+            posx, posy = x, y
 
         if radius==None and size==None and total==False and ell==None:
-            logger.info('Extracting pixel %i, %i' %(posx, posy))
-            spec = np.array(self.data[:,posy-1,posx-1])
-            err  = np.array(self.erro[:,posy-1,posx-1])
+            if verbose == 1:
+                logger.info('Extracting pixel %i, %i' %(posx, posy))
+            spec = np.array(self.data[:,posy, posx])
+            err  = np.array(self.erro[:,posy, posx])
             return self.wave, spec, err
 
         if total==False and radius!=None:
-            logger.info('Creating extraction mask with radius %i arcsec' %radius)
+            if verbose == 1:
+                logger.info('Creating extraction mask with radius %i arcsec' %radius)
             radpix = radius / self.pixsky
             x, y = np.indices(self.data.shape[0:2])
 
@@ -774,14 +785,14 @@ class Spectrum3d:
             exmask[exmask <= radpix] = 1
             exmask[exmask > radpix] = 0
 
-        if total == False and size != None:
-            # Check this
-            logger.info('Extracting spectrum with size %ix%i pixel' \
+        elif total==False and size!=None:
+            if verbose == 1:
+                logger.info('Extracting spectrum with size %ix%i pixel' \
                 %(2*size+1, 2*size+1))
-            miny = max(0, posy-1-size)
-            maxy = min(self.leny, posy+size)
-            minx = max(0, posx-1-size)
-            maxx = min(self.lenx, posx+size)
+            miny = max(0, posy-size)
+            maxy = min(self.leny-1, posy+size+1)
+            minx = max(0, posx-size)
+            maxx = min(self.lenx-1, posx+size+1)
 
             spec = np.array(self.data[:, miny:maxy, minx:maxx])
             err  = np.array(self.erro[:, miny:maxy, minx:maxx])
@@ -791,7 +802,7 @@ class Spectrum3d:
 
             return self.wave, rspec, rerr
 
-        elif total == False and ell != None:
+        elif total==False and ell!=None:
             # Ellipse is in pixel coordinates
             logger.info( 'Creating extraction ellipse')
             x, y = np.indices(self.data.shape[0:2])
@@ -839,7 +850,7 @@ class Spectrum3d:
             logger.info('Extracting spectra took %.1f s' %(time.time()-t1))
         if pexmask == True:
             logger.info('Plotting extraction map')
-            self.pdfout(exmask, name='exmask', cmap = 'gist_gray')
+            pdfout(self, exmask, name='exmask', cmap = 'gist_gray')
         return self.wave, spec, err
 
 
@@ -1000,48 +1011,6 @@ class Spectrum3d:
 
 
 
-    def plotxy(self, x, y, xerr=None, yerr=None, ylabel=None, xlabel=None,
-                 name=''):
-        """ Simple error bar plot convinience method """
-
-        fig = plt.figure(figsize = (7,4))
-        fig.subplots_adjust(bottom=0.13, top=0.97, left=0.13, right=0.97)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.yaxis.set_major_formatter(plt.FormatStrFormatter(r'$%.1f$'))
-        ax.xaxis.set_major_formatter(plt.FormatStrFormatter(r'$%.1f$'))
-        ax.errorbar(x, y, xerr = xerr, yerr=yerr, fmt = 'o',
-                    color = 'blue', alpha = 0.2, ms = 0.5,
-                    # rasterized = raster,
-                    mew = 2, zorder = 1)
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel(ylabel)
-        plt.savefig('%s_%s_%s.pdf' %(self.inst, self.target, name))
-        plt.close(fig)
-
-
-
-    def plotspec(self, x, y, err=None, name='', div=1E3):
-        """ Simple spectrum bar plot convinience method """
-
-        fig = plt.figure(figsize = (7,4))
-        fig.subplots_adjust(bottom=0.13, top=0.97, left=0.13, right=0.97)
-        ax = fig.add_subplot(1, 1, 1)
-#        ax.yaxis.set_major_formatter(plt.FormatStrFormatter(r'$%f$'))
-        ax.xaxis.set_major_formatter(plt.FormatStrFormatter(r'$%i$'))
-        ax.plot(x, y/div, color = 'black', alpha = 1.0, # rasterized = raster,
-                    drawstyle = 'steps-mid',  lw = 0.8, zorder = 1)
-        if err != None:
-            ax.plot(x, err/div, color = 'grey', alpha = 1.0, # rasterized = raster,
-                    drawstyle = 'steps-mid',  lw = 0.6, zorder = 1)
-        ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$')
-        ax.set_xlabel(r'$\rm{Observed\,wavelength\, (\AA)}$')
-        if div == 1E3:
-            ax.set_ylim(0)
-        ax.set_xlim(self.wave[0], self.wave[-1])
-        plt.savefig('%s_%s_%sspec.pdf' %(self.inst, self.target, name))
-        plt.close(fig)
-
-
     def hiidetect(self, plane, thresh=15, median=5):
         """ HII segregation algorithm. Work in progress. """
 
@@ -1106,82 +1075,6 @@ class Spectrum3d:
 
 
 
-    def pdfout(self, plane, smoothx=0, smoothy=0, name='', source='',
-               label=None, vmin=None, vmax=None, ra=None, dec=None, median=None,
-               psf=None, cmap='viridis'):
-        """ Simple 2d-image plot function """
-
-        myeffect = withStroke(foreground="w", linewidth=2)
-        kwargs = dict(path_effects=[myeffect])
-#        hfont = {'fontname':'Helvetica'}
-
-        if smoothx > 0:
-            plane = blur_image(plane, smoothx, smoothy)
-        if median != None:
-            plane = sp.ndimage.filters.median_filter(plane, median)
-        if ra != None and dec != None:
-            try:
-                posx, posy = self.skytopix(ra, dec)
-            except TypeError:
-                posx, posy = self.sexatopix(ra, dec)
-
-        if plane.ndim == 2:
-            fig = plt.figure(figsize = (11,9.5))
-            fig.subplots_adjust(bottom=0.16, top=0.99, left=0.13, right=0.99)
-
-        else:
-            fig = plt.figure(figsize = (9,9))
-            fig.subplots_adjust(bottom=0.18, top=0.99, left=0.18, right=0.99)
-        ax = fig.add_subplot(1, 1, 1)
-
-        ax.set_ylim(10,  self.leny-10)
-        ax.set_xlim(10,  self.lenx-10)
-
-        plt.imshow(plane, vmin=vmin, vmax=vmax, cmap=cmap)#, aspect="auto")#, cmap='Greys')
-
-        if psf != None:
-            psfrad = psf/2.3538/0.2
-            psfsize = plt.Circle((30,30), psfrad, color='grey',
-                                 alpha=0.7, **kwargs)
-            ax.add_patch(psfsize)
-            plt.text(30, 44, r'PSF',
-               fontsize = 16, ha = 'center', va = 'center',  **kwargs)
-
-        if ra != None and dec != None:
-            psfrad = psf/2.3538/0.2
-            psfsize = plt.Circle((posx,posy), psfrad, lw=3, fill=False,
-                                 color='white', **kwargs)
-            ax.add_patch(psfsize)
-            psfsize = plt.Circle((posx,posy), psfrad, lw=1.5, fill=False,
-                                 color='black', **kwargs)
-            ax.add_patch(psfsize)
-            plt.text(posx, posy-12, source,
-               fontsize = 20, ha = 'center', va = 'center',  **kwargs)
-
-        if plane.ndim == 2:
-            bar = plt.colorbar(shrink = 0.9)
-    #        bar.formatter  = plt.FormatStrFormatter(r'$%.2f$')
-            if not label == None:
-                bar.set_label(label, size = 16)
-                bar.ax.tick_params(labelsize=16)
-            bar.update_ticks()
-
-        [xticks, xlabels], [yticks, ylabels] = self.createaxis()
-        plt.xticks(rotation=50)
-        plt.yticks(rotation=50)
-
-        ax.set_xticks(xticks)
-        ax.set_xticklabels(xlabels, size=16)
-        ax.set_yticks(yticks)
-        ax.set_yticklabels(ylabels, size=16)
-        ax.set_xlabel(r'Right Ascension (J2000)', size = 20)
-        ax.set_ylabel(r'Declination (J2000)', size = 20)
-
-        plt.savefig('%s_%s_%s.pdf' %(self.inst, self.target, name))
-        plt.close(fig)
-
-
-
     def rgb(self, planes, minval=None, maxval=None, scale='lin'):
         """ Creates and rgb image from three input planes (bgr) """
 
@@ -1216,210 +1109,113 @@ class Spectrum3d:
 
 
 
-    def starlight(self, ascii, plot=1):
+    def starlight(self, ascii, plot=1, verbose=1):
         """ Convinience function to run starlight on an ascii file returning its
         spectral fit and bring it into original rest-frame wavelength scale again
-        """
-        logger.info('Starting starlight')
-        t1 = time.time()
-        sl = StarLight(filen=ascii)
-        datawl, data, stars, norm =  sl.modOut(plot=0)
-        logger.info('Running starlight took %.2f s' %(time.time() - t1))
-        s = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+self.z), 
-                                                        data*1E3*norm/(1+self.z))
-        t = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+self.z), 
-                                                        stars*1E3*norm/(1+self.z))
-        return s(self.wave), t(self.wave)
-
-
-
-    def substarlight(self, x, y, size=0):
-        """ Convinience function to subtract a starlight fit based on a single
-        spectrum from many spaxels
-        """
         
-        wl, spec, err = self.extrSpec(x=x, y=y, size=size)
-        ascii = self.asciiout(wl=wl, spec=spec, err=err, 
-                              name='%s_%s_%s' %(x, y, size))
-        data, stars = self.starlight(ascii=ascii)
-        rs = data/spec
-        logger.info('Resampling accuracy %.3f +/- %.3f' \
-            %(np.nanmedian(rs), np.nanstd(rs[1:-1])))
-        
-
-    def asciiout(self, wl, spec, err=None, resample=1, name=''):
-        """ Write the given spectrum into a ascii file. 
-        Returns name of ascii file, writes ascii file.
-
         Parameters
         ----------
-        wl : np.array
-            wavelength array
-        spec : np.array
-            spectrum array
-        err : np.array
-            possible error array (default None)
-        resample : int
-            wavelength step in AA to resample
-        name : str
-            Name to use in fits file name
-        """
-        asciiout = '%s_%s.txt' %(self.output, name)
-        if self.z != None:
-            logger.info('Moving to restframe')
-            wls = wl / (1+self.z)
-            spec = spec * (1+self.z) * 1E-3
-            if err != None:
-                err = err * (1+self.z) * 1E-3
-        else:
-            spec *= 1E-20
-            if err != None:
-                err = err * 1E-3
-        outwls = np.arange(int(wls[0]), int(wls[-1]), resample)
-
-        s = sp.interpolate.InterpolatedUnivariateSpline(wls, spec)
-        outspec = s(outwls)
-
-        if err != None:
-            t = sp.interpolate.InterpolatedUnivariateSpline(wls, err)
-            outerr = t(outwls)
-
-        f = open(asciiout, 'w')
-        for i in range(len(outwls)):
-            if err != None:
-                f.write('%.1f %.3f %.3f 0\n' %(outwls[i], outspec[i], outerr[i]))
-            if err == None:
-                f.write('%.1f %.3f\n' %(outwls[i], outspec[i]))            
-        f.close()
-#        logger.info('Writing ascii file took %.2f s' %(time.time() - t1))
-        return asciiout
-        
-    
-
-
-    def fitsout(self, plane, smoothx=0, smoothy=0, name=''):
-        """ Write the given plane into a fits file. Uses header of the original
-        data. Returns nothing, but write a fits file.
-
-        Parameters
-        ----------
-        plane : np.array
-            data to store in fits file
-        smoothx : int
-            possible Gaussian smoothing length in x-coordinate (default 0)
-        smoothy : int
-            possible Gaussian smoothing length in y-coordinate (default 0)
-        name : str
-            Name to use in fits file name
-        """
-
-        planeout = '%s_%s.fits' %(self.output, name)
-
-        if smoothx > 0:
-            plane = blur_image(plane, smoothx, smoothy)
-
-        if os.path.isfile(planeout):
-            os.remove(planeout)
-        hdu = pyfits.HDUList()
-        headimg = self.head.copy()
-        headimg['NAXIS'] = 2
-        for delhead in ['NAXIS3', 'CD3_3', 'CD1_3', 'CD2_3', 'CD3_1', 'CD3_2',
-                        'CRPIX3', 'CRVAL3', 'CTYPE3', 'CUNIT3']:
-            del headimg[delhead],
-        hdu.append(pyfits.PrimaryHDU(header = self.headprim))
-        hdu.append(pyfits.ImageHDU(data = plane, header = headimg))
-        hdu.writeto(planeout)
-
-
-    def fitsin(self, fits):
-        """Read in a fits file and retun the data
-
-        Parameters
-        ----------
-        fits : str
-            fits file name to read
+            ascii : str
+                Filename of spectrum in Format WL SPEC ERR FLAG
 
         Returns
         ----------
-        data : np.array
-            data arry of input fits file
+            data : np.array (array of zeros if starlight not sucessfull)
+                Original data (resampled twice, to check for accuracy)
+                
+            star : np.array (array of zeros if starlight not sucessfull)
+                Starlight fit
+
+            success : int
+                Flag whether starlight was executed successully
         """
+        
+        if verbose == 1:
+            logger.info('Starting starlight')
+        t1 = time.time()
+        sl = StarLight(filen=ascii)
+        datawl, data, stars, norm, success =  sl.modOut(plot=0)
+        zerospec = np.zeros(self.wave.shape)
 
-        data = pyfits.getdata(fits)
-        return data
+        if success == 1:
+            if verbose == 1:
+                logger.info('Running starlight took %.2f s' %(time.time() - t1))
+            s = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+self.z), 
+                                                        data*1E3*norm/(1+self.z))
+            t = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+self.z), 
+                                                        stars*1E3*norm/(1+self.z))
+            return s(self.wave), t(self.wave), success
+        else:
+            if verbose ==1:
+                logger.info('Starlight failed in %.2f s' %(time.time() - t1))
+            return zerospec, zerospec, success
+
+
+
+    def substarlight(self, x, y, size=0, verbose=1):
+        """ Convinience function to subtract a starlight fit based on a single
+        spectrum from many spaxels
+        
+        Parameters
+        ----------
+            x : integer
+                x-Index of region center
+            y : integer
+                y-Index of region center        
+            size : integer
+                Size of square around center (x,y +/- size)
+        """
+        
+        wl, spec, err = self.extrSpec(x=x, y=y, size=size, verbose=0)
+        ascii = asciiout(s3d=self, wl=wl, spec=spec, err=err, 
+                              name='%s_%s_%s' %(x, y, size))
+                          
+        data, stars, success = self.starlight(ascii=ascii, verbose=0)
+        os.remove(ascii)
+        miny, maxy = max(0, y-size), min(self.leny-1, y+size+1)
+        minx, maxx = max(0, x-size), min(self.lenx-1, x+size+1)
+        
+        xindizes=np.arange(minx, maxx, 1)
+        yindizes=np.arange(miny, maxy, 1)
+        zerospec = np.zeros(self.wave.shape)
+        if success == 1:
+#            rs = data/spec
+#            logger.info('Resampling accuracy %.3f +/- %.3f' \
+#                %(np.nanmedian(rs), np.nanstd(rs[1:-1])))
+
+            for xindx in xindizes:
+                for yindx in yindizes:
+                    wl, spec, err = self.extrSpec(x=xindx, y=yindx, verbose=verbose)
+                    # Renormalize to actual spectrum
+                    substars = np.nanmedian(spec/data)*stars
+                    # Overwrite starcube with fitted values
+                    self.starcube[:, yindx, xindx] = substars
+        else:
+            for xindx in xindizes:
+                for yindx in yindizes:
+                    # Np sucess
+                    self.starcube[:, yindx, xindx] = zerospec
+        return
 
 
 
 
-    def createaxis(self):
-        """ WCS axis helper method """
+    def suball(self, dx=2, nc=None):
+        """ Convinience function to subtract starlight fits on the full cube
+        """
+        
+        logger.info("Starting starlight on full cube with %i cores" %self.ncores)
+        logger.info("This might take a bit")
+        t1 = time.time()
+        xindizes = np.arange(dx, self.lenx, 2*dx+1)
+        yindizes = np.arange(dx, self.leny, 2*dx+1)
+#        xindizes = np.array([260, 265, 270, 275, 280])
+#        yindizes = np.array([240, 245, 250, 255, 260])
 
-        if True:
-            minra, mindec = self.pixtosexa(self.head['NAXIS1']-20, 20)
-            maxra, maxdec = self.pixtosexa(20, self.head['NAXIS2']-20)
-
-            if self.head['NAXIS1'] > 500:
-                dx = 30
-            else:
-                dx = 20
-            if self.head['NAXIS2'] > 500:
-                dy = 2
-            else:
-                dy = 1
-
-            minram = int(minra.split(':')[1])
-            minrah = int(minra.split(':')[0])
-            minras = np.ceil(float(minra.split(':')[-1]))
-
-            axpx, axlab, aypx, aylab = [], [], [], []
-
-            def az(numb):
-                if 0 <= numb < 10:
-                    return '0%i' %numb
-                elif -10 < numb < 0:
-                    return '-0%i' %np.abs(numb)
-                else:
-                    return '%i' %numb
-
-            while True:
-                if minras >= 60:
-                    minram += 1
-                    minras -= 60
-                if minram >= 60:
-                    minrah += 1
-                    minram -= 60
-                if minrah >= 24:
-                    minrah -= 24
-                axra = '%s:%s:%s' %(az(minrah), az(minram), az(minras))
-                xpx = self.sexatopix(axra, mindec)[0]
-                if xpx > self.head['NAXIS1'] or xpx < 0:
-                    break
-                else:
-                    axpx.append(xpx)
-                    axlab.append(r'$%s^{\rm{h}}%s^{\rm{m}}%s^{\rm{s}}$'%tuple(axra.split(':')) )
-                minras += dy
-            
-            if self.headprim['DEC'] > 0:
-                maxdec = mindec
-            maxdem = int(maxdec.split(':')[1])
-            maxdeh = int(maxdec.split(':')[0])
-            maxdes = np.round(float(maxdec.split(':')[-1]) + 10, -1)
-
-            while True:
-                if maxdes >= 60:
-                    maxdem += 1
-                    maxdes -= 60
-                if maxdem >= 60:
-                    maxdeh += 1
-                    maxdem -= 60
-
-                axdec = '%s:%s:%s' %(az(maxdeh), az(maxdem), az(maxdes))
-                ypx = self.sexatopix(minra, axdec)[1]
-                if ypx > self.head['NAXIS2'] or ypx < 0:
-                    break
-                else:
-                    aypx.append(ypx)
-                    aylab.append(r"$%s^\circ%s'\,%s''$"%tuple(axdec.split(':')))
-                maxdes += dx
-
-            return [axpx, axlab], [aypx, aylab]
+        for xindx in xindizes:
+            for yindx in yindizes:
+                self.substarlight(xindx, yindx, dx, verbose=0)
+                
+        cubeout(self, self.starcube, name='star')
+        cubeout(self.data-self.starcube, name='gas')
+        logger.info("This took %.2f h" %((time.time()-t1)/3600.))

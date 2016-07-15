@@ -117,6 +117,30 @@ def bootstraps(data):
     return np.random.randint(data.shape[0],size=data.shape[0])
 
 
+#####################################################
+
+
+def errs(vals, sigma = 1, ul = 2):
+    """ Median value and asymetric 1\sigma errorbars, 2s upper limitfor a list / array:
+        Returns Median / 1s minus error / 1s plus error / 2s upper limit"""
+    if len(vals) > 18:
+        sigman = {1: 68.27, 2: 95.45, 3: 99.73, 4: 99.993665}
+        vall = (1 - sigman[sigma] / 100)/2
+        valh = 1 - vall
+        valn = sorted(list(vals))
+        valmed = valn[len(valn)/2]
+        valmin = valn[int(round(vall*len(valn)))]-valmed
+        valmax = valn[int(round(valh*len(valn)))]-valmed
+        val2s  = valn[int(round(0.9545*len(valn)))]
+        val3s  = valn[int(round(0.9973*len(valn)))]
+    else:
+        valmed, valmin, valmax, val2s = vals[0], 0, 0, vals[0]
+    if ul == 2:
+        return valmed, valmin, valmax, val2s
+    elif ul == 3:
+        return valmed, valmin, valmax, val3s
+        
+
    
 #####################################################
 def ellShape(x, y, xm, xs, ym, ys, m=1, a=0.7, b=2):
