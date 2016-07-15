@@ -9,11 +9,25 @@ matplotlib.use('Agg')
 
 import os
 import numpy as np
+import scipy as sp
+
 import shutil
-#import subprocess
 import time
 import platform
 import matplotlib.pyplot as plt
+import logging
+
+from .io import asciiout, cubeout
+
+logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
+datefmt= '%Y-%m-%d %H:%M:%S'
+formatter = logging.Formatter(fmt=logfmt,datefmt=datefmt)
+logger = logging.getLogger('__main__')
+logging.root.setLevel(logging.DEBUG)
+ch = logging.StreamHandler() #console handler
+ch.setFormatter(formatter)
+logger.handlers = []
+logger.addHandler(ch)
 
 
 SL_BASE = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.M")
@@ -24,6 +38,7 @@ if platform.platform().startswith('Linux'):
     SL_EXE = os.path.join(os.path.dirname(__file__), "etc/starlight")
 else:
     SL_EXE = os.path.join(os.path.dirname(__file__), "etc/starlight_mac")
+
 
 
 class StarLight:
@@ -171,3 +186,119 @@ class StarLight:
                 plt.close(fig1)
                 
         return datawl, data, stars, norm, success
+        
+        
+        
+def runStar(s3d, ascii, plot=1, verbose=1):
+    """ Convinience function to run starlight on an ascii file returning its
+    spectral fit and bring it into original rest-frame wavelength scale again
+    
+    Parameters
+    ----------
+        ascii : str
+            Filename of spectrum in Format WL SPEC ERR FLAG
+
+    Returns
+    ----------
+        data : np.array (array of zeros if starlight not sucessfull)
+            Original data (resampled twice, to check for accuracy)
+            
+        star : np.array (array of zeros if starlight not sucessfull)
+            Starlight fit
+
+        success : int
+            Flag whether starlight was executed successully
+    """
+    
+    if verbose == 1:
+        logger.info('Starting starlight')
+    t1 = time.time()
+    sl = StarLight(filen=ascii)
+    datawl, data, stars, norm, success =  sl.modOut(plot=0)
+    zerospec = np.zeros(s3d.wave.shape)
+
+    if success == 1:
+        if verbose == 1:
+            logger.info('Running starlight took %.2f s' %(time.time() - t1))
+        s = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+s3d.z), 
+                                                    data*1E3*norm/(1+s3d.z))
+        t = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+s3d.z), 
+                                                    stars*1E3*norm/(1+s3d.z))
+        return s(s3d.wave), t(s3d.wave), success
+    else:
+        if verbose ==1:
+            logger.info('Starlight failed in %.2f s' %(time.time() - t1))
+        return zerospec, zerospec, success
+        
+
+def subStars(s3d, x, y, size=0, verbose=1):
+    """ Convinience function to subtract a starlight fit based on a single
+    spectrum from many spaxels
+    
+    Parameters
+    ----------
+        x : integer
+            x-Index of region center
+        y : integer
+            y-Index of region center        
+        size : integer
+            Size of square around center (x,y +/- size)
+    """
+    
+    wl, spec, err = s3d.extrSpec(x=x, y=y, size=size, verbose=0)
+    ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err, 
+                          name='%s_%s_%s' %(x, y, size))
+                      
+    data, stars, success = s3d.starlight(ascii=ascii, verbose=0)
+    os.remove(ascii)
+    miny, maxy = max(0, y-size), min(s3d.leny-1, y+size+1)
+    minx, maxx = max(0, x-size), min(s3d.lenx-1, x+size+1)
+    
+    xindizes=np.arange(minx, maxx, 1)
+    yindizes=np.arange(miny, maxy, 1)
+    zerospec = np.zeros(s3d.wave.shape)
+    if success == 1:
+#            rs = data/spec
+#            logger.info('Resampling accuracy %.3f +/- %.3f' \
+#                %(np.nanmedian(rs), np.nanstd(rs[1:-1])))
+
+        for xindx in xindizes:
+            for yindx in yindizes:
+                wl, spec, err = s3d.extrSpec(x=xindx, y=yindx, verbose=verbose)
+                
+                # Renormalize to actual spectrum
+                substars = np.nanmedian(spec/data)*stars
+                
+                # Overwrite starcube with fitted values
+                s3d.starcube[:, yindx, xindx] = substars
+    else:
+        for xindx in xindizes:
+            for yindx in yindizes:
+                # Np sucess
+                s3d.starcube[:, yindx, xindx] = zerospec
+    return
+    
+def suballStars(s3d, dx=2, nc=None):
+    """ Convinience function to subtract starlight fits on the full cube
+    """
+    
+    logger.info("Starting starlight on full cube with %i cores" %s3d.ncores)
+    logger.info("This might take a bit")
+    t1 = time.time()
+    xindizes = np.arange(dx, s3d.lenx, 2*dx+1)
+    yindizes = np.arange(dx, s3d.leny, 2*dx+1)
+
+    for xindx in xindizes:
+        for yindx in yindizes:
+            s3d.substarlight(xindx, yindx, dx, verbose=0)
+            
+    cubeout(s3d, s3d.starcube, name='star')
+    cubeout(s3d.data-s3d.starcube, name='gas')
+    logger.info("This took %.2f h" %((time.time()-t1)/3600.))
+
+def pdfout(self, plane, **kwargs):
+    pdfout(self, plane, **kwargs)
+    
+def fitsout(self, plane, **kwargs):
+    fitsout(self, plane, **kwargs)    
+    
