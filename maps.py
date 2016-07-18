@@ -326,7 +326,7 @@ def gaussfit(x, y):
               params = [np.median(y[0:5]), np.nanmax(y), np.median(x), 2])
     return gaussparams[0][2], gaussparams[0][3],\
             gaussparams[2][2], gaussparams[2][3],\
-            gaussparams[2][1]/gaussparams[0][1]
+            gaussparams[0][1]/gaussparams[2][1]
 
 
 def getVel(s3d, line='ha', dv=250, R=2500):
@@ -355,19 +355,20 @@ def getVel(s3d, line='ha', dv=250, R=2500):
             Resolution in km/s (sigma)
     """
     
-    logger.info('Calculating valocity map')
+    logger.info('Calculating velocity map - this might take a bit')
     if line in ['Halpha', 'Ha', 'ha']:
         wlline = RESTWL['ha'] * (1 + s3d.z)
         minwl = wlline - 2 * dv/c * wlline
         maxwl = wlline + 2 * dv/c * wlline
-    fitcube, subwl = s3d.subCube(minwl, maxwl)
+    fitcube, subwl = s3d.subCube(wl1=minwl, wl2=maxwl)
     meanmap, sigmamap = [], []
     meanmape, sigmamape = [], []
     snmap = []
     t1 = time.time()
-    for y in range(s3d.data.shape[1]):
+    for y in range(s3d.data.shape[1]): #np.arange(100, 200, 1):
         result = Parallel(n_jobs = 1, max_nbytes='1G',)\
         (delayed(gaussfit)(subwl, fitcube[:,y,i]) for i in range(s3d.data.shape[2]))
+        #np.arange(100, 200, 1))
         meanmap.append(np.array(result)[:,0])
         sigmamap.append(np.array(result)[:,1])
         meanmape.append(np.array(result)[:,2])

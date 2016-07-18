@@ -420,6 +420,9 @@ class Spectrum3d:
         ascii = asciiout(self, wl, spec, **kwargs)
         return ascii
 
+    def subCube(self, **kwargs):
+        cube, cubewl = extract3d(self, **kwargs)
+        return cube, cubewl
 
     def extractCube(self, **kwargs):
         cube, cubewl = extract3d(self, **kwargs)
