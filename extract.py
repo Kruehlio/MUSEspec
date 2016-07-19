@@ -9,6 +9,7 @@ import logging
 import time
 
 from .io import pdfout
+from .maps import getEW
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
@@ -24,13 +25,44 @@ logger.addHandler(ch)
 RESTWL = {'oiia' : 3727.092, 'oii':3728.30, 'oiib' : 3729.875, 'hd': 4102.9351,
           'hg' : 4341.69, 'hb' : 4862.68, 'niia':6549.86,
           'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii': 4990., 'ha' : 6564.61,
-          'nii': 6585.27, 'siia':6718.29, 'siib':6732.68,
+          'nii': 6585.27, 'siia':6718.29, 'siib':6732.68, 'siii': 9071.1,
           'neiii' : 3869.81}
 
 c = 2.99792458E5
 
 
-def extract3d(self, wl1=None, wl2=None):
+def getGalcen(s3d, mask = True, line='ha', 
+              xlim1=155, xlim2=165, ylim1=155, ylim2=165):
+    """ 
+    Gets the central coordniates of the starlight-weighted light distribution
+    """
+    if mask != None:
+        hamap = getEW(s3d, line)
+        mask = hamap > 0
+    galcube = extract2d(s3d, wl1=5000, wl2=9000)
+    ysum, xsum = 2*[np.array([])]
+    maxx, maxy = 0, 0
+    for yindx in np.arange(galcube.shape[0]):
+        ysumline = np.nansum(([a for a in galcube[yindx,:][mask[yindx,:]]]))
+        ysum = np.append(ysum, ysumline)
+        if ysumline > maxy  and (ylim1 <= yindx <= ylim2):
+            bpixy, maxy = yindx, ysumline
+    
+    for xindx in np.arange(galcube.shape[1]):
+        xsumline = np.nansum([a for a in galcube[:,xindx][mask[:,xindx]]])
+        xsum = np.append(xsum, xsumline)
+        if xsumline > maxx and (xlim1 <= xindx <= xlim2):
+            bpixx, maxx = xindx, xsumline
+            
+    ycen = np.nansum(ysum[ysum > 0] * np.arange(s3d.leny)[ysum > 0])\
+        /np.nansum(ysum[ysum > 0])
+    xcen = np.nansum(xsum[xsum > 0] * np.arange(s3d.lenx)[xsum > 0])\
+        /np.nansum(xsum[xsum > 0])
+#    print xcen, ycen, bpixx, bpixy
+    return xcen, ycen
+
+
+def extract3d(s3d, wl1=None, wl2=None):
     """Extracts a subcube between two wavelengths
 
     Parameters
@@ -48,10 +80,10 @@ def extract3d(self, wl1=None, wl2=None):
             Wavelengths of the subcube
     """
 
-    pix1 = self.wltopix(wl1)
-    pix2 = max(pix1+1, self.wltopix(wl2)+1)
-    subcube = self.data[pix1:pix2]
-    subwl = self.wave[pix1:pix2]
+    pix1 = s3d.wltopix(wl1)
+    pix2 = max(pix1+1, s3d.wltopix(wl2)+1)
+    subcube = s3d.data[pix1:pix2]
+    subwl = s3d.wave[pix1:pix2]
     return subcube, subwl
 
 
@@ -113,6 +145,10 @@ def extract2d(s3d, wl1='', wl2='', z=None, line=None, dv=100,
         wlline1 = RESTWL['siia'] * (1+z)
         wlline = RESTWL['siib'] * (1+z)
         cont1 = wlline1 - 2*dv/c*wlline1
+        cont2 = wlline + 2*dv/c*wlline
+    elif line in ['SIII', 'siii', 'siiia']:
+        wlline = RESTWL['siii'] * (1+z)
+        cont1 = wlline - 2*dv/c*wlline
         cont2 = wlline + 2*dv/c*wlline
     else:
         cont1 = wl1 - 5

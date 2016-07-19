@@ -280,7 +280,8 @@ def subStars(s3d, x, y, size=0, verbose=1):
     
     
 def suballStars(s3d, dx=2, nc=None):
-    """ Convinience function to subtract starlight fits on the full cube
+    """ 
+    Convinience function to subtract starlight fits on the full cube
     """
     
     logger.info("Starting starlight on full cube with %i cores" %s3d.ncores)
@@ -294,5 +295,5 @@ def suballStars(s3d, dx=2, nc=None):
             subStars(s3d, xindx, yindx, dx, verbose=0)
             
     cubeout(s3d, s3d.starcube, name='star')
-    cubeout(s3d.data-s3d.starcube, name='gas')
+    cubeout(s3d, s3d.data-s3d.starcube, name='gas')
     logger.info("This took %.2f h" %((time.time()-t1)/3600.))

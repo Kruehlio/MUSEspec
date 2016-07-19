@@ -24,7 +24,9 @@ from .starlight import runStar, subStars, suballStars
 from .io import pdfout, fitsout, asciiout
 from .maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV, 
                    getVel, getSeg, getRGB)
-from .extract import extract1d, extract2d, extract3d, subtractCont
+from .extract import (extract1d, extract2d, extract3d, subtractCont, 
+                      getGalcen)
+from .analysis import (metGrad)
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
@@ -87,6 +89,8 @@ class Spectrum3d:
         hiidetect: HII region detection algorithm (work in progress)
         rgb: Provided three planes, creates an RGP image
         scaleCube: Scale cube by polynomial of given degree (default 1)
+        getGalcen: Get x and y index of center of galaxy (star light)
+
     """
 
 
@@ -124,8 +128,14 @@ class Spectrum3d:
         self.headprim = pyfits.getheader(filen, 0)
         # Get header of data extension
         self.head = pyfits.getheader(filen, 1)
-        self.headerro = pyfits.getheader(filen, 2)
-
+        # Read in data
+        self.data = pyfits.getdata(filen, 1)
+        try:
+            self.headerro = pyfits.getheader(filen, 2)
+            # Read in variance and turn into stdev
+            self.erro = pyfits.getdata(filen, 2)**0.5
+        except IndexError:
+            pass
         wlkey, wlstart = 'NAXIS%i'%dAxis, 'CRVAL%i'%dAxis
         wlinc, wlpixst = 'CD%i_%i'%(dAxis, dAxis), 'CRPIX%i'%dAxis
         pix = np.arange(self.head[wlkey]) + self.head[wlpixst]
@@ -137,10 +147,7 @@ class Spectrum3d:
         self.lenx = self.head['NAXIS1']
         self.leny = self.head['NAXIS2']
         self.wlinc =  self.head[wlinc]
-        # Read in data
-        self.data = pyfits.getdata(filen, 1)
-        # Read in variance and turn into stdev
-        self.erro = pyfits.getdata(filen, 2)**0.5
+
         if self.target == '':
             self.target = self.headprim['OBJECT']
         self.fluxunit = self.head['BUNIT']
@@ -192,8 +199,10 @@ class Spectrum3d:
         ebvcorr = ccmred(self.wave, ebv, rv)
         logger.info('Dereddening data using MW E_B-V = %.3f mag' %ebv)
         self.data *= ebvcorr[:,np.newaxis, np.newaxis]
-        self.erro *= ebvcorr[:,np.newaxis, np.newaxis]
-
+        try:
+            self.erro *= ebvcorr[:,np.newaxis, np.newaxis]
+        except AttributeError:
+            pass
 
 
     def ebvCor(self, line, rv=3.08, redlaw='mw'):
@@ -256,6 +265,7 @@ class Spectrum3d:
 
         if band in 'VRI':
             mag = mag + ABcorD[band]
+            
         if ra != None and dec != None:
             if self.verbose > 0:
                 logger.info('Star at: %s, %s' %(ra, dec))
@@ -360,6 +370,9 @@ class Spectrum3d:
     def getDens(self):
         s2map = getDens(self)
         return s2map
+
+    def metGrad(self, **kwargs):
+        metGrad(self, **kwargs)
  
     def getSFR(self):
         sfrmap = getSFR(self)
@@ -369,9 +382,13 @@ class Spectrum3d:
         ohmap = getOH(self, **kwargs)
         return ohmap       
 
-    def getIon(self):
+    def getIon(self, meth='S', **kwargs):
         ionmap = getIon(self)
         return ionmap
+        
+    def getGalcen(self, **kwargs):
+        x, y = getGalcen(self, **kwargs)
+        return x, y
 
     def getEW(self, line, **kwargs):
         ewmap = getEW(self, line, **kwargs)

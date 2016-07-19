@@ -440,8 +440,8 @@ def binspec(xs, ys, yerr = '', wl=3, meth = 'average', clip = 3, do_weight = 1):
         
     for i in range(len(xs)/int(wl)):
         data, wave = array(ys[i*wl:(i+1)*wl]), array(xs[i*wl:(i+1)*wl])
-        wavebin.append(average(wave))
-        meddata = median(data)
+        wavebin.append(np.nanmean(wave))
+        meddata = np.nanmedian(data)
         if len(yerr) == 0:
             stderr = std(data)
         else:
@@ -450,14 +450,14 @@ def binspec(xs, ys, yerr = '', wl=3, meth = 'average', clip = 3, do_weight = 1):
 
         if clip != 0:
             while True:
-                meddata = median(data)
+                meddata = np.nanmedian(data)
                 if len(yerr) == 0: 
-                    stderr = std(data)
+                    stderr = np.nanstd(data)
                 else: 
-                    stderr = average(erro)  
+                    stderr = np.nanmean(erro)  
                     # If Standarddeviation >> Error in spectrum prevent excluding all
-                    if std(data) > 3*stderr:
-                        stderr = std(data)
+                    if np.nanstd(data) > 3*stderr:
+                        stderr = np.nanstd(data)
                 sel = (data < meddata + clip*stderr) * (data > meddata - clip*stderr)
                 if sel.all() == True or len(data) <= wl/2:
                     break  
@@ -466,18 +466,18 @@ def binspec(xs, ys, yerr = '', wl=3, meth = 'average', clip = 3, do_weight = 1):
 
         if do_weight in [0, 'False', False, 'N', 'no', 'n', 'No'] or len(yerr) == 0:
             if meth == 'median':
-                databin.append(median(ys[i*wl:(i+1)*wl]))
+                databin.append(np.nanmedian(ys[i*wl:(i+1)*wl]))
                 if len(yerr) != 0:
-                    errobin.append(sum(yerr[i*wl:(i+1)*wl]**2)**0.5 / wl)
+                    errobin.append(np.nansum(yerr[i*wl:(i+1)*wl]**2)**0.5 / wl)
             elif meth == 'average':
-                databin.append(average(ys[i*wl:(i+1)*wl]))
+                databin.append(np.nanmean(ys[i*wl:(i+1)*wl]))
                 if len(yerr) != 0:
-                    errobin.append(sum(yerr[i*wl:(i+1)*wl]**2)**0.5 / wl)
+                    errobin.append(np.nansum(yerr[i*wl:(i+1)*wl]**2)**0.5 / wl)
         else:
             mult = 1./min(erro[erro > 0])
             weight = (1. / (mult*erro)**2 )
-            databin.append( sum (data * weight) / sum(weight) )
-            errobin.append((sum(erro**2)**0.5)/len(erro))  
+            databin.append( np.nansum (data * weight) / np.nansum(weight) )
+            errobin.append((np.nansum(erro**2)**0.5)/len(erro))  
     if len(yerr) != 0:
         return array(wavebin), array(databin), array(errobin)
     else:

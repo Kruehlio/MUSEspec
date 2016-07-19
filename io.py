@@ -131,6 +131,7 @@ def cubeout(s3d, cube, name='', err=False):
     """ Writes a 3d cube in a fits file. Maintains original header. Removes
     file if already existing
     """
+    
     cubeout = '%s_%s_cube.fits' %(s3d.output, name)
     if os.path.isfile(cubeout):
         os.remove(cubeout)

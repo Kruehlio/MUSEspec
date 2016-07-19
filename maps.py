@@ -30,7 +30,7 @@ c = 2.99792458E5
 RESTWL = {'oiia' : 3727.092, 'oii':3728.30, 'oiib' : 3729.875, 'hd': 4102.9351,
           'hg' : 4341.69, 'hb' : 4862.68, 'niia':6549.86,
           'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii': 4990., 'ha' : 6564.61,
-          'nii': 6585.27, 'siia':6718.29, 'siib':6732.68,
+          'nii': 6585.27, 'siia':6718.29, 'siib':6732.68, 'siii': 9071.1,
           'neiii' : 3869.81}
 
 
@@ -67,7 +67,7 @@ def getRGB(planes, minval=None, maxval=None, scale='lin'):
     return img
 
 
-def getDens(s3d):
+def getDens(s3d, sC=1):
     """ Derive electron density map, using the [SII] doublet and based on 
     the model of O'Dell et al. 2013 using Osterbrock & Ferland 2006
     Returns
@@ -76,8 +76,8 @@ def getDens(s3d):
             Contains the electorn map density, based on [SII] flux ratio
     """
 
-    siia = s3d.extractPlane(line='SIIa', sC=1, meth='sum')
-    siib = s3d.extractPlane(line='SIIb', sC=1, meth='sum')
+    siia = s3d.extractPlane(line='SIIa', sC=sC, meth='sum')
+    siib = s3d.extractPlane(line='SIIb', sC=sC, meth='sum')
     nemap = 10**(4.705 - 1.9875*siia/siib)
     return nemap
     
@@ -156,20 +156,26 @@ def getOH(s3d, meth='o3n2'):
     return ohmap    
    
 
-def getIon(s3d):
-    """ Uses the ratio between a collisionally excited line ([OIII]5007)
-    and the recombination line Hbeta as a tracer of ionization/excitation
-
+def getIon(s3d, meth='S'):
+    """    Creates an ionization map, based on SIII/SII Kewley & Dopita 2002, using
+    [SIII](9532) = 2.5 * [SIII](9069) from Vilchez & Esteban 1996,
     Returns
     -------
     ionmap : np.array
-        Contains the values of [OIII]/Hbeta
+        Contains the values of [SIII]/[SII] or [OIII]/Hbeta
     """
 
-    logger.info( 'Calculating [OIII]/Hbeta map')
-    hbflux = s3d.extractPlane(line='Hb', sC=1, meth='sum')
-    oiiiflux = s3d.extractPlane(line='OIII', sC=1, meth='sum')
-    ionmap = oiiiflux/hbflux
+    if meth == 'S':
+        logger.info( 'Calculating [SIII]/[SII] map')
+        siiia = s3d.extractPlane(line='SIII', sC=1, meth='sum')
+        siia = s3d.extractPlane(line='SIIa', sC=1, meth='sum')
+        siib = s3d.extractPlane(line='SIIb', sC=1, meth='sum')
+        ionmap = 2.44*siiia/(siia+siib)
+
+    else:
+        hbflux = s3d.extractPlane(line='Hb', sC=1, meth='sum')
+        oiiiflux = s3d.extractPlane(line='OIII', sC=1, meth='sum')
+        ionmap = oiiiflux/hbflux
     return ionmap
    
    
