@@ -21,12 +21,14 @@ from .astro import (LDMP, Avlaws, airtovac, ergJy,
 
 from .functions import (deg2sexa, sexa2deg, ccmred)
 from .starlight import runStar, subStars, suballStars
-from .io import pdfout, fitsout, asciiout
-from .maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV, 
-                   getVel, getSeg, getRGB)
-from .extract import (extract1d, extract2d, extract3d, subtractCont, 
-                      getGalcen)
-from .analysis import (metGrad)
+from .io import pdfout, fitsout, asciiout, cubeout, plotspec
+from .maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
+                   getVel, getSeg, getRGB, getTemp, getOHT)
+
+from .extract import (extract1d, extract2d, extract3d, subtractCont,
+                      getGalcen, cutCube, extractCont, RESTWL)
+from .analysis import (metGrad, voronoi_bin, anaSpec)
+#from .voronoi import voronoi
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
@@ -44,13 +46,6 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 c = 2.99792458E5
-
-RESTWL = {'oiia' : 3727.092, 'oii':3728.30, 'oiib' : 3729.875, 'hd': 4102.9351,
-          'hg' : 4341.69, 'hb' : 4862.68, 'niia':6549.86,
-          'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii': 4990., 'ha' : 6564.61,
-          'nii': 6585.27, 'siia':6718.29, 'siib':6732.68,
-          'neiii' : 3869.81}
-
 
 
 class Spectrum3d:
@@ -70,7 +65,7 @@ class Spectrum3d:
         subtractCont: Subtracts continuum of plane
         getCont: Measures continuum of plane
         getSFR: Calculates the SFR density map based on Halpha
-        getOHsimp: Calculates oxygen abundance map based on strong line diagnostics
+        getOH: Calculates oxygen abundance map based on strong line diagnostics
         getIon: Calculates [OIII]/Hbeta map as ionization/excitation proxy
         getEW: Calculates equivalent width maps of given line
         getEBV: Calculates EB-V maps from Balmer decrement
@@ -103,6 +98,7 @@ class Spectrum3d:
         self.skymask = None
         self.maskpix = None
         self.ebvmap = None
+        self.ebvGalCorr = 0
         self.objmask = None
         self.verbose = verbose
         self.scale = []
@@ -203,9 +199,10 @@ class Spectrum3d:
             self.erro *= ebvcorr[:,np.newaxis, np.newaxis]
         except AttributeError:
             pass
+        self.ebvGalCorr = ebv
 
 
-    def ebvCor(self, line, rv=3.08, redlaw='mw'):
+    def ebvCor(self, line, rv=3.08, redlaw='mw', ebv=None):
         """ Uses a the instance attribut ebvmap, the previously calculated map
         of host reddening to calulate a correction map for a given line.
 
@@ -224,16 +221,23 @@ class Spectrum3d:
             The correction map to be applied to the linefluxes to correct
             for the galaxy's dust absorption
         """
+        WL = RESTWL[line.lower()]/10.
 
-        if len(self.ebvmap) != None:
-            WL = RESTWL[line.lower()]/10.
-            ebvcorr = 1./np.exp(-1./1.086*self.ebvmap * rv * Avlaws(WL, redlaw))
+        if ebv != None:
+            ebvcalc = ebv
+            ebvcorr = 1./np.exp(-1./1.086*ebvcalc * rv * Avlaws(WL, redlaw))
+
+        elif len(self.ebvmap) != None:
+            ebvcalc = self.ebvmap
+            ebvcorr = 1./np.exp(-1./1.086*ebvcalc * rv * Avlaws(WL, redlaw))
             ebvcorr[np.isnan(ebvcorr)] = 1
             ebvcorr[ebvcorr < 1] = 1
-            return ebvcorr
+            
         else:
-            logger.error( 'Need an EBV-map / create via getEBV !!!')
+            logger.error( 'Need an ebv or EBV-map / create via getEBV !!!')
             raise SystemExit
+
+        return ebvcorr
 
 
     def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7):
@@ -265,7 +269,7 @@ class Spectrum3d:
 
         if band in 'VRI':
             mag = mag + ABcorD[band]
-            
+
         if ra != None and dec != None:
             if self.verbose > 0:
                 logger.info('Star at: %s, %s' %(ra, dec))
@@ -356,8 +360,8 @@ class Spectrum3d:
             dra = np.append(dra, starra - ra)
             ddec = np.append(ddec, stardec - dec)
         dram, ddecm = np.average(dra), np.average(ddec)
-        logger.info('Changing astrometry by %.1f" %.1f"' %(dram*3600, ddec*3600))
-        logger.info('RMS astrometry %.1f" %.1f"' %(np.std(dra)*3600, np.std(ddec)*3600))
+        logger.info('Changing astrometry by %.1f" %.1f"' %(dram*3600, ddecm*3600))
+        logger.info('RMS astrometry %.3f" %.3f"' %(np.std(dra)*3600, np.std(ddec)*3600))
         self.head['CRVAL1'] -= dram
         self.head['CRVAL2'] -= ddecm
 
@@ -367,103 +371,103 @@ class Spectrum3d:
         cont2 = np.nanmedian(self.data[pix2:pix2+dx], axis=0)
         return np.nanmean(np.array([cont1,cont2]), axis=0)
 
-    def getDens(self):
-        s2map = getDens(self)
-        return s2map
-
+    def getDens(self, **kwargs):
+        return getDens(self, **kwargs)
+    
+    def anaSpec(self, **kwargs):
+        return anaSpec(self, **kwargs)
+        
     def metGrad(self, **kwargs):
         metGrad(self, **kwargs)
- 
-    def getSFR(self):
-        sfrmap = getSFR(self)
-        return sfrmap
 
-    def getOHsimp(self, **kwargs):
-        ohmap = getOH(self, **kwargs)
-        return ohmap       
+    def getSFR(self):
+        return getSFR(self)
+
+    def getOH(self, **kwargs):
+        return getOH(self, **kwargs)
+
+    def getOHT(self, toiii, toii, siii, **kwargs):
+        return getOHT(self, toiii, toii, siii, **kwargs)
 
     def getIon(self, meth='S', **kwargs):
-        ionmap = getIon(self)
-        return ionmap
-        
+        return getIon(self)
+
     def getGalcen(self, **kwargs):
-        x, y = getGalcen(self, **kwargs)
-        return x, y
+        return getGalcen(self, **kwargs)
+
+    def extractCont(self, line, **kwargs):
+        return extractCont(self, line, **kwargs)
+
+    def getTemp(self, meth='SIII', **kwargs):
+        return getTemp(self, meth=meth, **kwargs)
 
     def getEW(self, line, **kwargs):
-        ewmap = getEW(self, line, **kwargs)
-        return ewmap
+        return getEW(self, line, **kwargs)
 
-    def getEBV(self):
-        ebvmap = getEBV(self)
-        return ebvmap
+    def getEBV(self, **kwargs):
+        return getEBV(self, **kwargs)
 
     def BPT(self, **kwargs):
         getBPT(self)
 
     def velMap(self, **kwargs):
-        velmap, sigmamap, Rsig = getVel(self, **kwargs)
-        return velmap, sigmamap, Rsig
+        return getVel(self, **kwargs)
 
     def hiidetect(self, plane, **kwargs):
-        segmap = getSeg(self, plane, **kwargs)
-        return segmap
+        return getSeg(self, plane, **kwargs)
 
     def rgb(self, planes, **kwargs):
-        rgbmap = getRGB(planes, **kwargs)
-        return rgbmap
+        return getRGB(planes, **kwargs)
 
     def starlight(self, ascii, **kwargs):
-        data, stars, success = runStar(self, ascii)
-        return data, stars, success
+        return runStar(self, ascii)
 
     def substarlight(self, x, y, **kwargs):
         subStars(self, x, y, **kwargs)
 
-
     def suball(self, **kwargs):
         suballStars(self, **kwargs)
-        
-        
+
     def pdfout(self, plane, **kwargs):
         pdfout(self, plane, **kwargs)
 
-
     def fitsout(self, plane, **kwargs):
         fitsout(self, plane, **kwargs)
-
+        
+    def cubeout(self, cube, **kwargs):
+        cubeout(self, cube, **kwargs)
 
     def asciiout(self, wl, spec, **kwargs):
-        ascii = asciiout(self, wl, spec, **kwargs)
-        return ascii
+        return asciiout(self, wl, spec, **kwargs)
+
+    def plotspec(self, wl, spec, **kwargs):
+        return plotspec(self, wl, spec, **kwargs)
 
     def subCube(self, **kwargs):
-        cube, cubewl = extract3d(self, **kwargs)
-        return cube, cubewl
+        return extract3d(self, **kwargs)
+
+    def cutCube(self, **kwargs):
+        return cutCube(self, **kwargs)
 
     def extractCube(self, **kwargs):
-        cube, cubewl = extract3d(self, **kwargs)
-        return cube, cubewl
-
+        return  extract3d(self, **kwargs)
 
     def extractPlane(self, **kwargs):
-        plane = extract2d(self, **kwargs)
-        return plane
-
+        return extract2d(self, **kwargs)
 
     def extrSpec(self, **kwargs):
-        wave, spec, err = extract1d(self, **kwargs)
-        return wave, spec, err
-        
-        
-    def subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10):
-        subplane = subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10)
-        return subplane
+        return extract1d(self, **kwargs)
 
+    def voronoi_bin(self, **kwargs):
+        return voronoi_bin(**kwargs)
+
+
+    def subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10):
+        return  subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10)
 
     def wltopix(self, wl):
         """ Converts wavelength as input into nearest integer pixel value """
-        pix = ((wl - self.wave[0]) / self.wlinc) + 1
+        pix = ((wl - self.wave[0]) / self.wlinc)
         return max(0, int(round(pix)))
 
 
@@ -484,12 +488,14 @@ class Spectrum3d:
 
 
     def skytopix(self, ra, dec):
-        """ Converts ra, dec positions in degrees into x, y """
+        """ Converts ra, dec positions in degrees into x, y 
+        x, y in python format, starts with 0        
+        """
 
         y = (dec - self.head['CRVAL2']) / self.head['CD2_2'] + self.head['CRPIX2']
         x = ((ra - self.head['CRVAL1']) / self.head['CD1_1']) *\
             np.cos( dec * np.pi/180.) + self.head['CRPIX1']
-        return x, y
+        return (int(round(x-1)), int(round(y-1)))
 
 
     def pixtosexa(self, x, y):
@@ -506,4 +512,3 @@ class Spectrum3d:
         ra, dec = sexa2deg(ra, dec)
         x, y = self.skytopix(ra,dec)
         return (int(round(x)), int(round(y)))
-

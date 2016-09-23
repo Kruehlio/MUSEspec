@@ -19,6 +19,16 @@ import numpy as np
          
 c, c1 = 2.99792458E5, 2.99792458E8
 
+############################################
+
+def geterrs(art, sigma = 1):
+    ar = array(art)
+    ar.sort()
+    lenar = len(ar)
+    mini = special.erfc(sigma/2**0.5)/2
+    maxi = 1-mini
+    bestval, minval, maxval = ar[int(lenar*0.5)], ar[int(lenar*mini)], ar[int(lenar*maxi)]
+    return bestval, bestval-minval, maxval-bestval    
 
 ###########################################
 

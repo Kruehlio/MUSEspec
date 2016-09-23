@@ -9,7 +9,7 @@ from numpy.ma import median
 from numpy import pi, sqrt, log, array, exp
 from mpfit import mpfit
 from scipy import special, interpolate
-from MUSEspec.functions import redlaw
+from .functions import redlaw
 """ 
 The version of mpfit I use can be found here:
     http://code.google.com/p/agpy/source/browse/trunk/mpfit
@@ -511,7 +511,7 @@ def onedvoigtfit(xax, data, err=None,
 def lin(x, a, b):
     return a + b*x
 
-def linfit(xax, data, err = None, params = [0, 1], fixed = [False, False],
+def linfit(xax, data, err = None, params = [1, 1], fixed = [False, False],
             limitedmin=[False,False], limitedmax=[False,False], 
             minpars=[0,0], maxpars=[0,0], quiet=True, shh=True,
             veryverbose=False):

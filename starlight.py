@@ -65,11 +65,11 @@ class StarLight:
             raise SystemExit
             
         if run == 1:
-            self.makeGrid()
-            self.runGrid()
+            self._makeGrid()
+            self._runGrid()
 
 
-    def makeGrid(self, name='muse_grid.in'):
+    def _makeGrid(self, name='muse_grid.in'):
 
         headkey = ['[Number of fits to run]',
                '[base_dir]', '[obs_dir]', '[mask_dir]', '[out_dir]',
@@ -112,7 +112,7 @@ class StarLight:
         f.write('\n')
         self.grid = name
         
-    def runGrid(self, cleanup=True):
+    def _runGrid(self, cleanup=True):
         t1 = time.time()
         slarg = [SL_EXE, '<', self.grid, '>', self.sllog]
         os.system(' '.join(slarg))
@@ -121,7 +121,6 @@ class StarLight:
             shutil.rmtree('bases')
             os.remove(os.path.join(self.cwd, os.path.split(SL_BASE)[-1]))
             os.remove(os.path.join(self.cwd, os.path.split(SL_CONFIG)[-1]))
-#            os.remove(self.grid)
         return time.time()-t1
 
        
@@ -247,7 +246,7 @@ def subStars(s3d, x, y, size=0, verbose=1):
     
     wl, spec, err = s3d.extrSpec(x=x, y=y, size=size, verbose=0)
     ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err, 
-                          name='%s_%s_%s' %(x, y, size))
+                          name='%s_%s_%s' %(x, y, size), fmt='txt')
                       
     data, stars, success = runStar(s3d, ascii, verbose=0)
     os.remove(ascii)
@@ -290,10 +289,13 @@ def suballStars(s3d, dx=2, nc=None):
     xindizes = np.arange(dx, s3d.lenx, 2*dx+1)
     yindizes = np.arange(dx, s3d.leny, 2*dx+1)
 
+#    xindizes = np.arange(150, 180, 2*dx+1)
+#    yindizes = np.arange(150, 180, 2*dx+1)
+
     for xindx in xindizes:
         for yindx in yindizes:
             subStars(s3d, xindx, yindx, dx, verbose=0)
             
-    cubeout(s3d, s3d.starcube, name='star')
-    cubeout(s3d, s3d.data-s3d.starcube, name='gas')
+    cubeout(s3d, s3d.starcube, err=s3d.erro, name='star')
+    cubeout(s3d, s3d.data-s3d.starcube, err=s3d.erro, name='gas')
     logger.info("This took %.2f h" %((time.time()-t1)/3600.))

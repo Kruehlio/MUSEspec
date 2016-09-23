@@ -12,6 +12,8 @@ import time
 import scipy.constants as spc
 from joblib import Parallel, delayed
 from .fitter import onedgaussfit
+from .extract import RESTWL
+from .formulas import calcebv, calcohD16, calcDens
 import scipy.ndimage.filters
 
 
@@ -27,11 +29,131 @@ logger.addHandler(ch)
 
 c = 2.99792458E5
 
-RESTWL = {'oiia' : 3727.092, 'oii':3728.30, 'oiib' : 3729.875, 'hd': 4102.9351,
-          'hg' : 4341.69, 'hb' : 4862.68, 'niia':6549.86,
-          'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii': 4990., 'ha' : 6564.61,
-          'nii': 6585.27, 'siia':6718.29, 'siib':6732.68, 'siii': 9071.1,
-          'neiii' : 3869.81}
+
+def _getProp(s3d, propmap, ra, dec, rad):
+    """ Return properties at ra, dec with radius rad
+    
+    Parameters
+    ----------    
+
+    Returns
+    -------    
+    """
+    try:
+        posx, posy = s3d.skytopix(ra, dec)
+    except TypeError:
+        posx, posy = s3d.sexatopix(ra, dec)        
+    x, y = np.indices(s3d.data.shape[0:2])
+    logger.info('Getting properties at %s %s within %i spaxel' \
+            %(ra, dec, rad))
+    logger.info('Central spaxel %i %i' %(posx+1, posy+1))                
+    exmask = np.round(((x - posy)**2  +  (y - posx)**2)**0.5)
+    exmask[exmask < rad] = 1
+    exmask[exmask >= rad] = 0
+    cenprop = propmap[posy, posx]
+    
+    logger.info('Total number of  spaxels %i' %(len(propmap[exmask==1])))                
+   
+    avgprop = np.nanmean(propmap[exmask==1])
+    medprop = np.nanmedian(propmap[exmask==1])
+    stdprop = np.nanstd(propmap[exmask==1])
+    logger.info('CenVal, AvgVal, MedVal, StdDev: %.3f, %.3f, %.3f, %.3f' 
+        %(cenprop, avgprop, medprop, stdprop))
+    return cenprop, avgprop, medprop, stdprop
+    
+
+def getTemp(s3d, sC=0, meth='SIII', kappa=30, ne=100):
+    
+    t = 1E4
+    if meth in ['SIII', 'siii']:
+        ebvmap, snmap = getEBV(s3d, sC=sC)
+
+        siii, siiie = s3d.extractPlane(line='siii', sC=sC, meth='sum')
+        siii *= s3d.ebvCor('siii')
+
+        siiiau, siiiaue = s3d.extractPlane(line='siii6312', sC=sC, meth='sum')
+        siiiau *= s3d.ebvCor('siii6312')
+        
+        a, b, c, d = 10719, 0.09519, 1.03510, 6.5E-3
+        a1, a2, a3 = 1.00075, 1.09519, 3.21668
+        b1, b2, b3 = 13.3016, 24396.2, 57160.4   
+        auf, f, aufe = siiiau, siii, siiiaue
+    
+    if meth in ['OIII', 'oiii']:
+        oiii, oiiie = s3d.extractPlane(line='oiiib', sC=sC, meth='sum')
+        oiiiau, oiiiaue = s3d.extractPlane(line='oiii4363', sC=sC, meth='sum')
+        a, b, c, d = 13229, 0.92350, 0.98196, 3.8895E-04
+        a1, a2, a3 = 1.00036, 1.27142, 3.55371
+        b1, b2, b3 = 21.1751, 42693.5, 103086.
+        auf, f, aufe = 1.33*oiiiau, oiii, aufe
+
+    if meth in ['NII', 'nii']:
+        nii, niie = s3d.extractPlane(line='niib', sC=sC, meth='sum')
+        niiau, niiaue = s3d.extractPlane(line='nii5755', sC=sC, meth='sum')
+        a, b, c, d  = 10873, 0.76348, 1.01350, 3.6E-3     
+        a1, a2, a3 = 1.0008, 1.26281, 3.06569
+        b1, b2, b3 = 19.432, 31701.9, 70903.4  
+        auf, f, aufe = niiau, nii, niiaue
+    
+    for n in range(40):
+        t = a * (-np.log10((auf/f)/(1 + d*(100./t**0.5))) - b)**(-c) 
+
+    a, b, c = -0.546, 2.645, -1.276
+    if meth in ['SIII', 'siii']:
+        c -= t/1E4
+        toiii = ((-b + (b**2 - 4*a*c)**0.5) / (2*a))*1E4
+        tsiii = t
+        toii = (-0.744 + toiii/1E4*(2.338 - 0.610*toiii/1E4)) * 1E4
+
+    if meth in ['OIII', 'oiii']:
+        toiii = t
+        toii = (-0.744 + toiii/1E4*(2.338 - 0.610*toiii/1E4)) * 1E4
+        tsiii = (a*toiii/1E4**2 + b*toiii/1E4 + c) * 1E4
+        
+    a = (a1 + a2/kappa + a3/kappa**2)
+    b = (b1 + b2/kappa + b3/kappa**2)
+    tkin = a * t - b
+    sn = auf/aufe
+    
+    return toiii, toii, tsiii, tkin, sn
+
+
+
+def getOHT(s3d, toiii, toii, tsiii, meth = 'O', sC=0):
+    
+    x = 10**(-4)*100*toiii**(-0.5)
+    hb, hbe = s3d.extractPlane(line='Hb', sC=sC, meth='sum')
+    hb *= s3d.ebvCor('hb')
+
+    if meth == 'O':
+        oiii, oiiie = s3d.extractPlane(line='oiiib', sC=sC, meth='sum')
+        oiia, oiiae = s3d.extractPlane(line='oii7320', sC=sC, meth='sum')
+        oiib, oiibe = s3d.extractPlane(line='oii7331', sC=sC, meth='sum')
+        oiia *= s3d.ebvCor('oii7320')
+        oiib *= s3d.ebvCor('oii7331')
+        oiii *= s3d.ebvCor('oiiib')
+        
+        logoih = np.log10((oiia+oiib)/hb) + 6.901 + 2.487 / toii\
+            - 0.483 * np.log10(toii) - 0.013*toii + np.log10(1 - 3.48*x)       
+        logoiih = np.log10(1.33*oiii/hb) + 6.200 + 1.251 / toiii \
+            - 0.55 * np.log10(toiii) - 0.014 * toiii 
+        logoh = np.log10((10**(logoih-12)+10**(logoiih-12)))+12
+        return logoh, logoih, logoiih
+
+    elif meth == 'S':
+        siia, siiae = s3d.extractPlane(line='siia', sC=sC, meth='sum')
+        siib, siibe = s3d.extractPlane(line='siib', sC=sC, meth='sum')
+        siiib, siiibe = s3d.extractPlane(line='siii6312', sC=sC, meth='sum')
+        siia *= s3d.ebvCor('siia')
+        siib *= s3d.ebvCor('siib')
+        siiib *= s3d.ebvCor('siii6312')
+        
+        logsih = np.log10((siia+siib)/hb) + 5.439 + 0.929 / toii\
+            - 0.28 * np.log10(toii) - 0.018*toii + np.log10(1 + 1.39*x)       
+        logsiih = np.log10(siiib/hb) + 6.690 + 1.678 / tsiii \
+            - 0.47 * np.log10(tsiii) - 0.010 * tsiii 
+        logsh = np.log10((10**(logsiih-12)+10**(logsih-12)))+12
+        return logsh, logsih, logsiih
 
 
 def getRGB(planes, minval=None, maxval=None, scale='lin'):
@@ -68,22 +190,28 @@ def getRGB(planes, minval=None, maxval=None, scale='lin'):
 
 
 def getDens(s3d, sC=1):
+    
     """ Derive electron density map, using the [SII] doublet and based on 
     the model of O'Dell et al. 2013 using Osterbrock & Ferland 2006
     Returns
     -------
-        ne : np.array
-            Contains the electorn map density, based on [SII] flux ratio
+        nemap : np.array
+            Contains the log of the electron map density, based on [SII] flux 
+            ratio
+        nemape : np.array
+            Contains the error in the log of the electron map density
     """
 
-    siia = s3d.extractPlane(line='SIIa', sC=sC, meth='sum')
-    siib = s3d.extractPlane(line='SIIb', sC=sC, meth='sum')
-    nemap = 10**(4.705 - 1.9875*siia/siib)
-    return nemap
+    siia, siiae = s3d.extractPlane(line='siia', sC=sC, meth='sum')
+    siib, siibe = s3d.extractPlane(line='siib', sC=sC, meth='sum')
+    nemap = calcDens(siia,siib)
+    snmap = (1./(1./(siia/siiae)**2 + 1./(siib/siibe)**2))**0.5
+    return nemap, snmap
+
+
     
+def getSFR(s3d, sC=1):
     
-    
-def getSFR(s3d):
     """ Uses Kennicut 1998 formulation to convert Ha flux into SFR. Assumes
     a Chabrier 2003 IMF, and corrects for host intrinsic E_B-V if the map
     has previously been calculated. No Parameters. Requires the redshift to
@@ -95,20 +223,26 @@ def getSFR(s3d):
             Contains the star-formation rate map density, based on Halpha flux
             values (corrected for galaxy E_B-V if applicable). Units is
             M_sun per year per kpc**2. Note the per kpc**2.
+        sfrmape : np.array
+            Contains the error star-formation rate map density.
     """
+    
     logger.info( 'Calculating SFR map')
-    haflux = s3d.extractPlane(line='Ha', sC=1, meth='sum')
+    haflux, haerr = s3d.extractPlane(line='ha', sC=sC, meth='sum')
     halum = 4 * np.pi * s3d.LDMP**2 * haflux * 1E-20
+    
     if s3d.ebvmap != None:
         logger.info( 'Correcting SFR for EBV')
         ebvcorr = s3d.ebvCor('ha')
         halum *= sp.ndimage.filters.median_filter(ebvcorr, 4)
     sfrmap = halum * 4.8E-42 / s3d.pixsky**2 / s3d.AngD
-    return sfrmap    
+    snmap = haflux/haerr
+    return sfrmap, snmap
     
     
     
-def getOH(s3d, meth='o3n2'):
+def getOH(s3d, meth='o3n2', sC=1, ra=None, dec=None, rad=None):
+    
     """ Uses strong line diagnostics to calculate an oxygen abundance map
     based on spaxels. Extracts fits the necessary line fluxes and then uses
     the method defined through meth to calculate 12+log(O/H)
@@ -118,69 +252,129 @@ def getOH(s3d, meth='o3n2'):
         meth : str
             default 'o3n2', which is the Pettini & Pagel 2004 O3N2 abundance
             other options are:
-                 n2: Pettini & Pagel 2004 N2
+                 N2: Pettini & Pagel 2004 N2
                  M13: Marino et al. 2013 O3N2
                  M13N2: Marino et al. 2013 N2
-                 s2: Dopita et al. 2016 S2
+                 S2: Dopita et al. 2016 S2
                  D02N2: Denicolo et. al. 2002 N2
+                 Ar3O3: [ArIII]/[OIII] Stasinska (2006)
+                 S3O3: [SIII]/[OIII] Stasinska (2006)
     Returns
     -------
         ohmap : np.array
             Contains the values of 12 + log(O/H) for the given method
+        snmap : np.array
+            Contains the values of S/N for 12 + log(O/H) for the given method
     """
 
-    logger.info( 'Calculating oxygen abundance map')
-    ha = s3d.extractPlane(line='Ha', sC=1, meth='sum')
-    hb = s3d.extractPlane(line='Hb', sC=1, meth='sum')
-    oiii = s3d.extractPlane(line='OIII', sC=1, meth='sum')
-    nii = s3d.extractPlane(line='NII', sC=1, meth='sum')
-    siia = s3d.extractPlane(line='SIIa', sC=1, meth='sum')
-    siib = s3d.extractPlane(line='SIIb', sC=1, meth='sum')
-
-    o3n2 = np.log10((oiii/hb)/(nii/ha))
+    logger.info( 'Calculating oxygen abundance map %s method' %meth)
+    ha, hae = s3d.extractPlane(line='ha', sC=sC, meth='sum')
+    nii, niie = s3d.extractPlane(line='nii', sC=sC, meth='sum')
+    snnii, snha = nii/niie, ha/hae
     n2 = np.log10(nii/ha)
-    s2 = np.log10(nii/(siia+siib)) + 0.264 * np.log10(nii/ha)
-
-    if meth in ['o3n2', 'O3N2', 'PP04']:
+    tmp = s3d.getEBV(sC=sC)
+    
+    if meth in ['o3n2', 'O3N2', 'PP04', 'OIIINII', 'PP04O3N2']:
+        hb, hbe = s3d.extractPlane(line='hb', sC=sC, meth='sum')
+        oiii, oiiie = s3d.extractPlane(line='oiiib', sC=sC, meth='sum')
+        snoiii, snhb = oiii/oiiie, hb/hbe
+        
+        o3n2 = np.log10((oiii/hb)/(nii/ha))
         ohmap = 8.73 - 0.32 * o3n2
-    if meth in ['n2', 'NII']:
+        snmap = (1./(1./snhb**2 + 1./snha**2 + \
+                            1./snnii**2 + 1./snoiii**2))**0.5
+
+    elif meth in ['Ar3O3']:
+        oiii, oiiie = s3d.extractPlane(line='oiiib', sC=sC, meth='sum')
+        ariii, ariiie = s3d.extractPlane(line='ariii7135', sC=sC, meth='sum')
+        ar3o3 = np.log10(ariii/oiii *\
+            s3d.ebvCor('ariii7135') / s3d.ebvCor('oiiib'))
+        snmap = ariii/ariiie
+        ohmap = 8.91 + 0.34*ar3o3 + 0.27*ar3o3**2 + 0.20*ar3o3**3
+
+    elif meth in ['S3O3']:
+        oiii, oiiie = s3d.extractPlane(line='oiiib', sC=sC, meth='sum')
+        siii, siiie = s3d.extractPlane(line='siii', sC=sC, meth='sum')
+        s3o3 = np.log10(siii/oiii *\
+            s3d.ebvCor('siii') / s3d.ebvCor('oiiib'))
+        snmap = siii/siiie
+        ohmap = 8.70 + 0.28*s3o3 + 0.03*s3o3**2 + 0.10*s3o3**3
+
+    elif meth in ['s2', 'S2', 'D16']:
+        siia, siiae = s3d.extractPlane(line='siia', sC=sC, meth='sum')
+        siib, siibe = s3d.extractPlane(line='siib', sC=sC, meth='sum')
+        siisn = (siia/siiae)**2 + (siib/siibe)**2
+
+        ohmap = calcohD16(siia, siib, ha, nii)
+        snmap = (1./(1./siisn**2 + 1./snnii**2 + (1./snha)**2))**0.5
+
+    elif meth in ['n2', 'NII', 'N2', 'PP04N2']:
         ohmap = 9.37 + 2.03*n2 + 1.26*n2**2 + 0.32*n2**3
-    if meth in ['M13']:
+        snmap = (1./(1./snha**2 + 1./snnii**2))**0.5
+
+    elif meth in ['M13']:
         ohmap = 8.533 - 0.214 * o3n2
-    if meth in ['M13N2']:
+        snmap = (1./(1./snhb**2 + 1./snha**2 + \
+                            1./snnii**2 + 1./snoiii**2))**0.5            
+    elif meth in ['M13N2']:
         ohmap = 8.743 + 0.462*n2
-    if meth in ['D02N2']:
+        snmap = (1./(1./snha**2 + 1./snnii**2))**0.5
+
+    elif meth in ['D02N2']:
         ohmap = 9.12 + 0.73*n2
-    if meth in ['s2', 'S2', 'D16']:
-        ohmap = 8.77 + s2 + 0.45 * (s2 + 0.3)**5
-    return ohmap    
+        snmap = (1./(1./snha**2 + 1./snnii**2))**0.5
+
+    else:
+        logger.error('Method %s not defined' %meth)
+        raise SystemExit
+        
+    if ra != None and dec != None and rad != None:
+        cenprop, avgprop, medprop, stdprop =\
+            _getProp(s3d, ohmap, ra, dec, rad)
+    
+    return ohmap, snmap  
    
 
-def getIon(s3d, meth='S'):
+def getIon(s3d, meth='S', sC=1, ra=None, dec=None, rad=None):
     """    Creates an ionization map, based on SIII/SII Kewley & Dopita 2002, using
-    [SIII](9532) = 2.5 * [SIII](9069) from Vilchez & Esteban 1996,
+    [SIII](9532) = 2.44 * [SIII](9069) from Mendoza & Zeipen 1982,
     Returns
     -------
     ionmap : np.array
         Contains the values of [SIII]/[SII] or [OIII]/Hbeta
+    ionmape : np.array
+        Contains the S/N of [SIII]/[SII] or [OIII]/Hbeta
     """
+#matplotlib.rc('text', usetex=True)
 
     if meth == 'S':
         logger.info( 'Calculating [SIII]/[SII] map')
-        siiia = s3d.extractPlane(line='SIII', sC=1, meth='sum')
-        siia = s3d.extractPlane(line='SIIa', sC=1, meth='sum')
-        siib = s3d.extractPlane(line='SIIb', sC=1, meth='sum')
-        ionmap = 2.44*siiia/(siia+siib)
-
+        siii, siiie = s3d.extractPlane(line='SIII', sC=sC, meth='sum')
+        siia, siiae = s3d.extractPlane(line='siia', sC=sC, meth='sum')
+        siib, siibe = s3d.extractPlane(line='siib', sC=sC, meth='sum')
+        ionmap = 3.44*siii/(siia+siib)
+        # Ionization parameter U from Dors et al. 2011
+#        umap = 10**(-1.36 * np.log10(1./ionmap) -3.09 )
+        siisn = (siia/siiae)**2 + (siib/siibe)**2
+        siiisn = siii/siiie
+        snmap = (1./(1./siisn**2 + 1./siiisn**2))**0.5
     else:
-        hbflux = s3d.extractPlane(line='Hb', sC=1, meth='sum')
-        oiiiflux = s3d.extractPlane(line='OIII', sC=1, meth='sum')
-        ionmap = oiiiflux/hbflux
-    return ionmap
+        hb, hbe = s3d.extractPlane(line='Hb', sC=sC, meth='sum')
+        oiii, oiiie = s3d.extractPlane(line='OIII', sC=sC, meth='sum')
+        ionmap = oiii/hb
+        snoiii, snhb = oiii/oiiie, hb/hbe
+        snmap = (1./(1./snhb**2 + 1./snoiii**2))**0.5
+    
+    if ra != None and dec != None and rad != None:
+        cenprop, avgprop, medprop, stdprop =\
+            _getProp(s3d, ionmap, ra, dec, rad)
+            
+    return ionmap, snmap
    
+
    
-   
-def getEW(s3d, line, dv=100):
+def getEW(s3d, line, dv=120, plotC=False, plotF=False, 
+          ra=None, dec=None, rad=None):
     """ Calculates the equivalent width (rest-frame) for a given line. Calls
     getCont, and extractPlane to derive line fluxes and continua
 
@@ -197,38 +391,35 @@ def getEW(s3d, line, dv=100):
     -------
         ewmap : np.array
             Equivalent width in AA for the given line
+        ewerr : np.array
+            Equivalent width error in AA for the given line
     """
 
     logger.info( 'Calculating map with equivalence width of line %s' %line)
     # Get line fluxes
-    flux = s3d.extractPlane(line=line, sC=1, meth='sum')
-    # Set continuum range, make sure no other emission line lies within
-    if line in ['Ha', 'ha', 'Halpha']:
-        contmin = RESTWL['niia'] * (1+s3d.z) - 2*dv/c*RESTWL['niia']
-        contmax = RESTWL['nii'] * (1+s3d.z) + 2*dv/c*RESTWL['nii']
-    elif line in ['Hbeta', 'Hb', 'hb']:
-        contmin = RESTWL['hb'] * (1+s3d.z) - 2*dv/c*RESTWL['hb']
-        contmax = RESTWL['hb'] * (1+s3d.z) + 2*dv/c*RESTWL['hb']
-    elif line in ['OIII', 'oiii']:
-        contmin = RESTWL['oiiib'] * (1+s3d.z) - 2*dv/c*RESTWL['oiiib']
-        contmax = RESTWL['oiiib'] * (1+s3d.z) + 2*dv/c*RESTWL['oiiib']
-    elif line in ['NII', 'nii']:
-        contmin = RESTWL['niia'] * (1+s3d.z) - 2*dv/c*RESTWL['niia']
-        contmax = RESTWL['nii'] * (1+s3d.z) + 2*dv/c*RESTWL['nii']
-    elif line in ['SIIa', 'siia']:
-        contmin = RESTWL['siia'] * (1+s3d.z) - 2*dv/c*RESTWL['siia']
-        contmax = RESTWL['siib'] * (1+s3d.z) + 2*dv/c*RESTWL['siib']
-    elif line in ['SIIb', 'siib']:
-        contmin = RESTWL['siia'] * (1+s3d.z) - 2*dv/c*RESTWL['siia']
-        contmax = RESTWL['siib'] * (1+s3d.z) + 2*dv/c*RESTWL['siib']
-    cont = s3d.getCont(s3d.wltopix(contmin), s3d.wltopix(contmax))
+    f1, fe1 = s3d.extractPlane(line=line, sC=1, meth='sum')
+    cont = s3d.extractCont(line=line)
+
     # Calculate emission line rest-frame equivalent width
-    ewmap = flux/cont/(1+s3d.z)
-    return ewmap   
+    ewmap = f1/cont/(1.+s3d.z)
+    snmap = f1/fe1
+
+    if plotC == True:
+        s3d.pdfout(cont, name = '%s_%s' %(line, 'cont'), 
+                   vmin=-np.nanstd(cont), vmax=8*np.nanstd(cont))
+   
+    if plotF == True:
+        s3d.pdfout(f1, name = '%s_%s' %(line, 'flux'), 
+                   vmin=-0.1*np.nanstd(f1), vmax=5*np.nanstd(f1))
+   
+    if ra != None and dec != None and rad != None:
+        cenprop, avgprop, medprop, stdprop =\
+            _getProp(s3d, ewmap, ra, dec, rad)
+    return ewmap, np.abs(snmap), cont
     
     
    
-def getEBV(self):
+def getEBV(s3d, sC=1, ra=None, dec=None, rad=None):
     """ Uses the Balmer decrement (Halpha/Hbeta) to calculate the relative
     color excess E_B-V using the intrinsic ratio of Osterbrook at 10^4 K of
     Halpha/Hbeta = 2.87. First extracts Halpha and Hbeta maps to derive
@@ -239,18 +430,25 @@ def getEBV(self):
         ebvmap : np.array
             2-d map of the color excess E_B-V
     """
-    
+    del s3d.ebvmap
     logger.info( 'Calculating E_B-V map')
-    Cha, Chb, Chg, Chd = 1, 0.348, 0.162, 0.089
-    kha, khb, khg, khd = 2.446, 3.560, 4.019, 4.253
-    haflux = self.extractPlane(line='Ha', sC = 1, meth = 'sum')
-    hbflux = self.extractPlane(line='Hb', sC = 1, meth = 'sum')
-    ebvmap = np.log10((Cha/Chb)/(haflux/hbflux)) / (0.4*(kha-khb))
-    #        ebvmap2 = 1.98 * (np.log10(haflux/hbflux) - np.log10(2.85))
+    ha, hae = s3d.extractPlane(line='ha', sC = sC, meth = 'sum')
+    hb, hbe = s3d.extractPlane(line='hb', sC = sC, meth = 'sum')
+    ebvmap = calcebv(ha, hb)
+#    ebvmap = 1.98 * (np.log10(ha/hb) - np.log10(2.85))
+    
     ebvmap[ebvmap < 0] = 1E-6
-    #        ebvmap[np.isnan(ebvmap)] = 1E-6
-    self.ebvmap = ebvmap
-    return ebvmap
+    ebvmap[ebvmap == np.nan] = 1E-6
+    ebvmap[np.isnan(ebvmap)] = 1E-6
+    s3d.ebvmap = ebvmap
+    snha, snhb = ha/hae, hb/hbe
+    snmap = (1./(1./snhb**2 + 1./snha**2))**0.5
+    
+    if ra != None and dec != None and rad != None:
+        cenprop, avgprop, medprop, stdprop =\
+            _getProp(s3d, ebvmap, ra, dec, rad)
+
+    return ebvmap, snmap
  
    
  
@@ -327,7 +525,7 @@ def getBPT(s3d, snf=5, snb=5):
 
 
 
-def gaussfit(x, y):
+def _gaussfit(x, y):
     gaussparams = onedgaussfit(x, y,
               params = [np.median(y[0:5]), np.nanmax(y), np.median(x), 2])
     return gaussparams[0][2], gaussparams[0][3],\
@@ -356,7 +554,9 @@ def getVel(s3d, line='ha', dv=250, R=2500):
         velmap : np.array
             Velocity map in km/s difference to the central value
         sigmap : np.array
-            Map of line broadening in km/s (not corrected for resulotion)
+            Map of line broadening in km/s (not corrected for resolution)
+        snmap : 
+            SN map of Gaussfit
         R : float
             Resolution in km/s (sigma)
     """
@@ -373,7 +573,7 @@ def getVel(s3d, line='ha', dv=250, R=2500):
     t1 = time.time()
     for y in range(s3d.data.shape[1]): #np.arange(100, 200, 1):
         result = Parallel(n_jobs = 1, max_nbytes='1G',)\
-        (delayed(gaussfit)(subwl, fitcube[:,y,i]) for i in range(s3d.data.shape[2]))
+        (delayed(_gaussfit)(subwl, fitcube[:,y,i]) for i in range(s3d.data.shape[2]))
         #np.arange(100, 200, 1))
         meanmap.append(np.array(result)[:,0])
         sigmamap.append(np.array(result)[:,1])
@@ -398,11 +598,11 @@ def getVel(s3d, line='ha', dv=250, R=2500):
     velmap = (meanmap - wlmean) / wlmean * spc.c/1E3
     sigmamap = (sigmamap / meanmap) * spc.c/1E3
     logger.info('Velocity map took %.1f s' %(time.time() - t1))
-    velmap[snmap < 2] = np.nan
-    sigmamap[snmap < 2] = np.nan
+#    velmap[snmap < 2] = np.nan
+#    sigmamap[snmap < 2] = np.nan
     Rsig = spc.c/(1E3 * R * 2 * (2*np.log(2))**0.5)
     
-    return np.array(velmap), np.array(sigmamap), Rsig
+    return np.array(velmap), np.array(sigmamap), snmap, Rsig
       
       
 
