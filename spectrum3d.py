@@ -380,8 +380,8 @@ class Spectrum3d:
     def metGrad(self, **kwargs):
         metGrad(self, **kwargs)
 
-    def getSFR(self):
-        return getSFR(self)
+    def getSFR(self, **kwargs):
+        return getSFR(self, **kwargs)
 
     def getOH(self, **kwargs):
         return getOH(self, **kwargs)

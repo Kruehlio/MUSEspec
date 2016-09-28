@@ -145,6 +145,15 @@ def asciiout(s3d, wl, spec, err=None, resample=1, name='', div=3,
 def cubeout(s3d, cube, name='', err=True):
     """ Writes a 3d cube in a fits file. Maintains original header. Removes
     file if already existing
+    
+    Parameters:
+    ----------
+    cube : np.array 
+        3-d array which to write into a fits file
+    name : str
+        Name to use in fits file name    
+    err : Boolean
+        Write out error to file, write variance into second extinsion
     """
     
     cubeout = '%s_%s_cube.fits' %(s3d.output, name)
@@ -164,9 +173,46 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
            ra=None, dec=None, source='',
            ra2=None, dec2=None, source2='',
            median=None, axis='WCS',
-           psf=None, cmap='viridis', twoc=True, norm='lin', fs=20):
+           psf=None, cmap='viridis', twoc=True, norm='lin', fs=24):
                
-    """ Simple 2d-image plot function """
+    """ Simple 2d-image plot function 
+    
+    Parameters:
+    ----------    
+    
+    plane : np.array
+        Either a 2d array for normal images, or a list of three 2d arrays for 
+        an RGB image
+    smoothx, smoothy : integer
+        Integer values of gaussian smoothing for the input plane
+    xmin, xmax, ymin, ymax : integer
+        Zoom into the specific pixel values of the input plane
+    errsize : float
+        Size of error radius with which to highlight a specific region
+    label : str
+        Label of region
+    ra, dec : sexagesimal
+        Location of label
+    label2 : str
+        Label of region 2
+    ra2, dec2 : sexagesimal
+        Location of label 2
+    median : integer
+        median filter the input plane
+    axis : string
+        WCS axis or none
+    psf : float
+        FWHM of the PSF which we draw at the left bottom corner of the output
+    cmap : string
+        Color map, default virdis
+    twoc : boolean
+        Write text in image in black and white letters
+    norm : string
+        How to normalize the RGB image (lin, sqrt, log)
+    fs : integer
+        Fontsize (default 24)
+    """
+    
     if xmax == -1:
         xmax = s3d.lenx
     if ymax == -1:
@@ -214,7 +260,8 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         elif axis == 'WCS':
             fig.subplots_adjust(bottom=0.20, top=0.99, left=0.08, right=0.96)
         else:
-            fig.subplots_adjust(bottom=0.01, top=0.99, left=0.01, right=0.96)
+            fig = plt.figure(figsize = (11,9.25))
+            fig.subplots_adjust(bottom=0.005, top=0.995, left=0.005, right=0.995)
             
     else:
         fig = plt.figure(figsize = (9,9))
@@ -293,6 +340,11 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         ax.set_yticklabels(ylabels, size=fs)
         ax.set_xlabel(r'Right Ascension (J2000)', size = fs)
         ax.set_ylabel(r'Declination (J2000)', size = fs)
+        
+    else:
+        ax.yaxis.set_major_formatter(plt.NullFormatter())
+        ax.xaxis.set_major_formatter(plt.NullFormatter())
+
 
     plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
     plt.close(fig)   

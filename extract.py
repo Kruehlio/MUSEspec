@@ -47,6 +47,7 @@ CWLS = {'ha' : [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
     'hd' : [RESTWL['hd'], RESTWL['hd'], RESTWL['hd']],
     'oiiia' : [RESTWL['oiiia'], RESTWL['oiiia'], RESTWL['oiiia']],                   
     'oiiib' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
+    'oi' : [RESTWL['oi'], RESTWL['oi'], RESTWL['oi']],                   
     'oiii' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
     'nii' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
     'niia' : [RESTWL['niia'], RESTWL['niia'], RESTWL['niib']],                   
@@ -64,7 +65,6 @@ CWLS = {'ha' : [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
 
 
 c = 2.99792458E5
-
 
 
 def getGalcen(s3d, mask = True, line='ha', sC=1,
