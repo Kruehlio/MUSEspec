@@ -167,13 +167,86 @@ def cubeout(s3d, cube, name='', err=True):
     hdu.writeto(cubeout)
  
  
-def distout(s3d, plane, name = '', ra=None, dec=None):
+def distout(s3d, plane, minx, maxx, dx, 
+            plane2=None, plane3=None,
+            sel=None, sel2=None, sel3=None,
+            logx=True, 
+            name='', label='', ra=None, dec=None, cumulative=True,
+            norm=True):
     """Plot the distribution of spaxel parameters in plane. Highlight the
     parameter at ra, dec if given
     """
-    fig = plt.figure(figsize = (7,4))
+
+    fig = plt.figure(figsize = (6,3.5))
+    fig.subplots_adjust(bottom=0.16, top=0.98, left=0.15, right=0.995)
     ax = fig.add_subplot(1, 1, 1)
-    ax.hist(plane)
+
+    x = None
+    if ra != None and dec != None:
+        try:
+            posx, posy = s3d.skytopix(ra, dec)
+        except TypeError:
+            posx, posy = s3d.sexatopix(ra, dec)
+        x = plane[posy, posx]
+        if plane2 != None:
+            x2 = plane2[posy, posx]
+        if plane3 != None:
+            x3 = plane3[posy, posx]
+            
+
+    if sel == None:
+        hist = plane.flatten()
+        hist = hist[hist>minx]
+        hist = hist[hist<maxx]
+    else:
+        hist = plane[sel]
+        
+    if plane2 != None:
+        hist2 = plane2[sel2]
+        hist2 = hist2[~np.isnan(hist2)]
+        
+    if plane3 != None:
+        hist3 = plane3[sel3]
+        hist3 = hist3[~np.isnan(hist3)]
+
+    hist = hist[~np.isnan(hist)]
+    if norm == True and x != None:
+        y = len(hist[hist<x])/float(len(hist))
+        if plane2 != None:
+            y2 = len(hist2[hist2<x2])/float(len(hist2))
+        if plane3 != None:
+            y3 = len(hist3[hist3<x3])/float(len(hist3))
+    else:
+        y = len(hist[hist<x])
+
+    bins = np.arange(minx, maxx, dx)
+    if logx == True:
+        bins = np.logspace(np.log10(minx), np.log10(maxx), 100)
+
+    ax.hist(hist, bins = bins, cumulative=cumulative, normed=norm,
+            histtype='step', lw=2, color='black')
+    if plane2 != None:
+        ax.hist(hist2, bins = bins, cumulative=cumulative, normed=norm,
+            histtype='step', lw=2, color='navy')
+    if plane3 != None:
+        ax.hist(hist3, bins = bins, cumulative=cumulative, normed=norm,
+            histtype='step', lw=2, color='firebrick')    
+            
+    if x != None:
+        ax.plot(x, y, 'o', mew=2, ms=11, color='black', mec='grey' )
+        if plane2 != None:
+            ax.plot(x2, y2, 'o', mew=2, ms=11, color='navy', mec='grey' )
+        if plane3 != None:
+            ax.plot(x3, y3, 'o', mew=2, ms=11, color='firebrick', mec='grey' )
+    
+    ax.set_xlim(minx, maxx-dx)
+    ax.set_ylim(0, 1.01)
+    ax.set_ylabel(r'Fraction', size = 14)
+    ax.set_xlabel(label, size = 14)
+    
+    if logx == True:
+        ax.set_xscale('log', subsx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    
     plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
     plt.close(fig)
      

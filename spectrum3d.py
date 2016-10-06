@@ -21,7 +21,7 @@ from .astro import (LDMP, Avlaws, airtovac, ergJy,
 
 from .functions import (deg2sexa, sexa2deg, ccmred)
 from .starlight import runStar, subStars, suballStars
-from .io import pdfout, fitsout, asciiout, cubeout, plotspec
+from .io import pdfout, fitsout, asciiout, cubeout, plotspec, distout
 from .maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
                    getVel, getSeg, getRGB, getTemp, getOHT)
 
@@ -430,6 +430,9 @@ class Spectrum3d:
 
     def pdfout(self, plane, **kwargs):
         pdfout(self, plane, **kwargs)
+
+    def distout(self, plane, minx, maxx, dx, **kwargs):
+        distout(self, plane, minx, maxx, dx, **kwargs)
 
     def fitsout(self, plane, **kwargs):
         fitsout(self, plane, **kwargs)
