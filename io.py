@@ -166,6 +166,17 @@ def cubeout(s3d, cube, name='', err=True):
         hdu.append(pyfits.ImageHDU(data = s3d.erro**2, header = s3d.headerro))
     hdu.writeto(cubeout)
  
+ 
+def distout(s3d, plane, name = '', ra=None, dec=None):
+    """Plot the distribution of spaxel parameters in plane. Highlight the
+    parameter at ra, dec if given
+    """
+    fig = plt.figure(figsize = (7,4))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.hist(plane)
+    plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
+    plt.close(fig)
+     
 
 def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
            xmin=0, xmax=-1, ymin=0, ymax=-1, errsize=0.5,
@@ -271,12 +282,15 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
     
     ax.set_ylim(5,  plane.shape[0]-5)
     ax.set_xlim(5,  plane.shape[1]-5)
+    
     if norm == 'lin':
         plt.imshow(plane, vmin=vmin, vmax=vmax, #extent=[],
                cmap=cmap, interpolation="nearest")#, aspect="auto")#, cmap='Greys')
+    
     elif norm == 'log':
         plt.imshow(plane, vmin=vmin, vmax=vmax, #extent=[],
                cmap=cmap, norm=LogNorm(), interpolation="nearest")#, aspect="auto")#, cmap='Greys')
+    
     if psf != None:
         psfrad = psf/2.3538/0.2
         psfsize = plt.Circle((plane.shape[0]/9.,plane.shape[1]/9.), 

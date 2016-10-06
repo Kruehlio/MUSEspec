@@ -408,7 +408,7 @@ class Spectrum3d:
         return getEBV(self, **kwargs)
 
     def BPT(self, **kwargs):
-        getBPT(self)
+        getBPT(self,  **kwargs)
 
     def velMap(self, **kwargs):
         return getVel(self, **kwargs)

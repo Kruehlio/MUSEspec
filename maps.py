@@ -12,7 +12,7 @@ import time
 import scipy.constants as spc
 from joblib import Parallel, delayed
 from .fitter import onedgaussfit
-from .extract import RESTWL
+from .extract import RESTWL, extract2d
 from .formulas import calcebv, calcohD16, calcDens
 import scipy.ndimage.filters
 
@@ -432,8 +432,8 @@ def getEBV(s3d, sC=1, ra=None, dec=None, rad=None):
     """
     del s3d.ebvmap
     logger.info( 'Calculating E_B-V map')
-    ha, hae = s3d.extractPlane(line='ha', sC = sC, meth = 'sum')
-    hb, hbe = s3d.extractPlane(line='hb', sC = sC, meth = 'sum')
+    ha, hae = s3d.extractPlane(line='ha', sC=sC, meth='sum')
+    hb, hbe = s3d.extractPlane(line='hb', sC=sC, meth='sum')
     ebvmap = calcebv(ha, hb)
 #    ebvmap = 1.98 * (np.log10(ha/hb) - np.log10(2.85))
     
@@ -452,7 +452,8 @@ def getEBV(s3d, sC=1, ra=None, dec=None, rad=None):
  
    
  
-def getBPT(s3d, snf=5, snb=5):
+def getBPT(s3d, snf=5, snb=5, sC=0, xlim1=-1.65, xlim2=0.3, ylim1=-1, ylim2=1,
+           ra=None, dec=None):
     """ Calculates the diagnostic line ratios of the Baldwin-Philips-Terlevich
     diagram ([NII]/Halpha) and [OIII]/Hbeta. Applies a signal-to-noise cut
     for the individual line, and plots the resulting values in an inten-
@@ -466,17 +467,13 @@ def getBPT(s3d, snf=5, snb=5):
         snb : float
             Signal to noise ratio cut of the bright lines, [OIII] and Halpha
             detault (5)
+        sC  : integer
     """
-
     logger.info( 'Deriving BPT diagram')
-    ha = s3d.extractPlane(line='ha', sC=1)
-    hae = s3d.extractPlane(line='ha', meth = 'error')
-    oiii = s3d.extractPlane(line='oiiib', sC=1)
-    oiiie = s3d.extractPlane(line='oiiib', meth = 'error')
-    nii = s3d.extractPlane(line='nii', sC=1)
-    niie = s3d.extractPlane(line='nii', meth = 'error')
-    hb = s3d.extractPlane(line='hb', sC=1)
-    hbe = s3d.extractPlane(line='hb', meth = 'error')
+    ha, hae = extract2d(s3d, line='ha', sC=sC)
+    oiii, oiiie = extract2d(s3d, line='oiiib', sC=sC)
+    nii, niie = extract2d(s3d, line='nii', sC=sC)
+    hb, hbe = extract2d(s3d, line='hb', sC=sC)
     sn1, sn2, sn3, sn4 = nii/niie, ha/hae, oiii/oiiie, hb/hbe
     sel = (sn1 > snf) * (sn2 > snb) * (sn3 > snb) * (sn4 > snf)
 
@@ -489,18 +486,35 @@ def getBPT(s3d, snf=5, snb=5):
     hh, locx, locy = sp.histogram2d(niiha, oiiihb, range=xyrange, bins=bins)
     thresh = 4
     hh[hh < thresh] = np.nan
-    fig = plt.figure(facecolor='white', figsize = (6, 5))
+    fig = plt.figure(facecolor='white', figsize = (7, 6))
     fig.subplots_adjust(hspace=-0.75, wspace=0.3)
     fig.subplots_adjust(bottom=0.12, top=0.84, left=0.16, right=0.98)
     ax1 = fig.add_subplot(1,1,1)
-    ax1.imshow(np.flipud(hh.T), alpha = 0.7, aspect=0.7,
+
+    plt.imshow(np.flipud(hh.T), alpha = 0.7, aspect=0.7,
            extent=np.array(xyrange).flatten(), interpolation='none')
+    
     ax1.plot(np.log10(np.nansum(nii[sel])/np.nansum(ha[sel])),
              np.log10(np.nansum(oiii[sel])/np.nansum(hb[sel])), 'o', ms = 10,
-             color = 'black', mec = 'grey', mew=2)
+             color = 'navy', mec = 'grey', mew=2,
+             label=r'$\mathrm{HII\,region\,average}$')
+
     ax1.plot(np.log10(np.nansum(nii)/np.nansum(ha)),
              np.log10(np.nansum(oiii)/np.nansum(hb)), 'o', ms = 10,
-             color = 'firebrick', mec = 'white', mew=2)
+             color = 'firebrick', mec = 'white', mew=2,
+             label=r'$\mathrm{Galaxy\,average}$')
+
+    if ra != None and dec != None:
+        try:
+            posx, posy = s3d.skytopix(ra, dec)
+        except TypeError:
+            posx, posy = s3d.sexatopix(ra, dec)  
+        ax1.plot(np.log10(nii[posy, posx]/ha[posy, posx]),
+             np.log10(oiii[posy, posx]/hb[posy, posx]), 's', ms = 10,
+             color = 'black', mec = 'white', mew=2, label=r'$\mathrm{SN\,site}$')
+
+    bar = plt.colorbar(shrink = 0.9, pad = 0.01)
+    bar.set_label(r'$\mathrm{Number\,of\,spaxels}$', size = 17)
 
     kf3 = np.arange(-1.7, 1.2, 0.01)
     kf0 = np.arange(-1.7, 0.0, 0.01)
@@ -512,13 +526,23 @@ def getBPT(s3d, snf=5, snb=5):
     ax1.plot(x, kf3,  '-', lw = 1.5, color = '0.0')
     # AGN/SF discrimination at z = 0
     ax1.plot(kf0, kfz0, '--', lw = 2.5, color = '0.2')
-    ax1.set_xlim(-1.65, 0.3)
-    ax1.set_ylim(-1.0, 1.0)
-
+    ax1.set_xlim(xlim1, xlim2)
+    ax1.set_ylim(ylim1, ylim2)
     ax1.set_xlabel(r'$\log({[\mathrm{NII}]\lambda 6584/\mathrm{H}\alpha})$',
                {'color' : 'black', 'fontsize' : 15})
     ax1.set_ylabel(r'$\log({[\mathrm{OIII}]\lambda 5007/\mathrm{H}\beta})$',
                {'color' : 'black', 'fontsize' : 15})
+
+    legend = ax1.legend(frameon=True,  markerscale = 0.9,  numpoints=1,
+                        handletextpad = -0.2,
+                        loc = 1, prop={'size':14})
+    rect = legend.get_frame()
+    rect.set_facecolor("0.9")
+    rect.set_linewidth(0.0)
+    rect.set_alpha(0.5)   
+
+    plt.figtext(0.3, 0.22, r'$\mathrm{Star-forming}$', size = 17,  color = 'black')
+    plt.figtext(0.75, 0.5, r'$\mathrm{AGN}$', size = 17, color = 'black')
 
     plt.savefig('%s_%s_BPT.pdf' %(s3d.inst, s3d.target))
     plt.close(fig)
