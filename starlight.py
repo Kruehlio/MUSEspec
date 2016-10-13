@@ -278,19 +278,28 @@ def subStars(s3d, x, y, size=0, verbose=1):
     return
     
     
-def suballStars(s3d, dx=2, nc=None):
+def suballStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None):
     """ 
-    Convinience function to subtract starlight fits on the full cube
+    Convinience function to subtract starlight fits on the full cube. Can work
+    with subcubes defined by x1, x2, y1, y2. Resamples is by a factor of dx.
     """
     
     logger.info("Starting starlight on full cube with %i cores" %s3d.ncores)
     logger.info("This might take a bit")
     t1 = time.time()
-    xindizes = np.arange(dx, s3d.lenx, 2*dx+1)
-    yindizes = np.arange(dx, s3d.leny, 2*dx+1)
+    if x1 != None and x2!= None:
+        logger.info("X-range: %i to %i" %(x1, x2))
+        xindizes = np.arange(x1, x2, 2*dx+1)
+    else:
+        xindizes = np.arange(dx, s3d.lenx, 2*dx+1)
+    if y1 != None and y2!= None:
+        logger.info("Y-range: %i to %i" %(y1, y2))
+        yindizes = np.arange(y1, y2, 2*dx+1)
+    else:
+        yindizes = np.arange(dx, s3d.leny, 2*dx+1)
 
-#    xindizes = np.arange(150, 180, 2*dx+1)
-#    yindizes = np.arange(150, 180, 2*dx+1)
+#    
+#    
 
     for xindx in xindizes:
         for yindx in yindizes:

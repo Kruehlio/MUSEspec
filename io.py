@@ -256,8 +256,9 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
            label=None, vmin=None, vmax=None, 
            ra=None, dec=None, source='',
            ra2=None, dec2=None, source2='',
-           median=None, axis='WCS',
-           psf=None, cmap='viridis', twoc=True, norm='lin', fs=24):
+           median=None, axis='WCS', size = (11.5,9.5),
+           psf=None, cmap='viridis', 
+           twoc=True, norm='lin', fs=24):
                
     """ Simple 2d-image plot function 
     
@@ -344,9 +345,8 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         elif axis == 'WCS':
             fig.subplots_adjust(bottom=0.20, top=0.99, left=0.08, right=0.96)
         else:
-            fig = plt.figure(figsize = (11,9.25))
-            fig.subplots_adjust(bottom=0.005, top=0.995, left=0.005, right=0.995)
-            
+            fig = plt.figure(figsize = size)
+            fig.subplots_adjust(bottom=0.005, top=0.995, left=0.005, right=0.95)
     else:
         fig = plt.figure(figsize = (9,9))
         fig.subplots_adjust(bottom=0.18, top=0.99, left=0.19, right=0.99)
@@ -366,19 +366,19 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
     
     if psf != None:
         psfrad = psf/2.3538/0.2
-        psfsize = plt.Circle((plane.shape[0]/9.,plane.shape[1]/9.), 
-                             psfrad, color='grey',
-                             alpha=0.7, **kwargs)
+        psfsize = plt.Circle((plane.shape[0]/9., plane.shape[1]/9.), 
+                             psfrad, color='black',
+                             alpha=1, **kwargs)
         ax.add_patch(psfsize)
         plt.text(plane.shape[0]/9., plane.shape[0]/6.5, r'PSF',
            fontsize = fs, ha = 'center', va = 'center',  **kwargs)
 
     if ra != None and dec != None:
         psfrad = errsize/2.3538/0.2
-        psfsize = plt.Circle((posx,posy), psfrad, lw=3, fill=False,
+        psfsize = plt.Circle((posx,posy), psfrad, lw=5, fill=False,
                              color='white', **kwargs)
         ax.add_patch(psfsize)
-        psfsize = plt.Circle((posx,posy), psfrad, lw=1.5, fill=False,
+        psfsize = plt.Circle((posx,posy), psfrad, lw=2.5, fill=False,
                              color='black', **kwargs)
         ax.add_patch(psfsize)
         plt.text(posx, posy*0.96, source,
@@ -401,8 +401,9 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
             bar.formatter  = LogFormatterMathtext()
         if not label == None:
             bar.set_label(label, size = fs+4)
-            bar.ax.tick_params(labelsize=fs)
+            bar.ax.tick_params(labelsize=max(24,fs-10))
         bar.update_ticks()
+    
     if axis == 'WCS':
 
         [xticks, xlabels], [yticks, ylabels] = _createaxis(s3d, plane)

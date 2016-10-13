@@ -180,7 +180,7 @@ def extract3d(s3d, wl1=None, wl2=None):
 
 
 
-def extract2d(s3d, wl1='', wl2='', z=None, line=None, dv=120,
+def extract2d(s3d, wl1='', wl2='', c1='', c2 = '', z=None, line=None, dv=120, dwl=None,
                  meth = 'sum', sC=0, v=0, pSpec=False):
     """Extracts a single plane, summed/averaged/medianed between two wave-
     lenghts, or for a single emission line. If the line is known to the code, 
@@ -216,33 +216,46 @@ def extract2d(s3d, wl1='', wl2='', z=None, line=None, dv=120,
 
     if z == None: z = s3d.z
     if z == None: z = 0
+    if wl1 != '' and c1 == '':
+        c1 = 5
+    if wl2 != '' and c2 == '':
+        c2 = 5        
         
     if line != None: 
         line = line.lower()
         if line in CWLS.keys():
-            wl = CWLS[line][0] * (1+z)        
+            wl = CWLS[line][0] * (1+z)    
             cont1 = (CWLS[line][1] * (1+z)) - 2.3538 * dv/c*wl * 1.5
             cont2 = (CWLS[line][2] * (1+z)) + 2.3538 * dv/c*wl * 1.5
+                
         elif line != None:
             logger.error('Line %s not known' %line)      
             raise SystemExit
-    
-        p1 = max(0, s3d.wltopix(wl - 2.3538*dv/c*wl))
-        p2 = max(p1+1, s3d.wltopix(wl +  2.3538*dv/c*wl))
-        
+        if dwl == None:
+            p1 = max(0, s3d.wltopix(wl - 2.3538*dv/c*wl))
+            p2 = max(p1+1, s3d.wltopix(wl +  2.3538*dv/c*wl))
+        else:
+            p1 = max(0, s3d.wltopix(wl - dwl))
+            p2 = max(p1+1, s3d.wltopix(wl +  dwl))
+            
         if line == 'sii':
             p1 = max(0, s3d.wltopix(wl - 600./c*wl))
             p2 = max(p1+1, s3d.wltopix(wl +  600./c*wl))            
+
         cpix1 = s3d.wltopix(cont1)
         cpix2 = s3d.wltopix(cont2)
         
-    elif wl1 != '' and wl2 != '':
+    elif wl1 != '' and wl2 != '' and c1 != '' and c2 != '':
         p1 = s3d.wltopix(wl1)
         p2 = s3d.wltopix(wl2)
+        cpix1 = s3d.wltopix(wl1-c1)
+        cpix2 = s3d.wltopix(wl2+c2)
+        cont1, cont2 = wl1+c1, wl2+c2
 
     else:
         logger.error("Do not know what to extract")
         raise SystemError
+
 
     if meth in ['sum']:
         allPlane = np.nansum(s3d.data[p1:p2], axis = 0)
@@ -253,7 +266,7 @@ def extract2d(s3d, wl1='', wl2='', z=None, line=None, dv=120,
         allError = np.nansum(s3d.erro[p1:p2]**2, axis = 0)**0.5 / (p2-p1)**0.5
 
     if sC == 1:
-        if s3d.verbose > 0:
+        if s3d.verbose > 0 or v > 0:
             logger.info( 'Subtracting continuum using lambda < %.1f and lambda > %.1f' \
                 %(cont1, cont2))
         currPlane = subtractCont(s3d, allPlane, p1, p2, cpix1, cpix2)

@@ -1,4 +1,4 @@
-24             [N_base]
+32             [N_base]
 bc2003_hr_m42_chab_ssp_020.spec          0.00100e9      0.00400     age020_m42      1.0000     0     0.0000
 bc2003_hr_m42_chab_ssp_045.spec          0.00316e9      0.00400     age045_m42      0.9999     0     0.0000
 bc2003_hr_m42_chab_ssp_055.spec          0.00501e9      0.00400     age055_m42      0.9488     0     0.0000
@@ -11,6 +11,8 @@ bc2003_hr_m42_chab_ssp_132.spec          0.64054e9      0.00400     age132_m42  
 bc2003_hr_m42_chab_ssp_139.spec          1.43400e9      0.00400     age139_m42      0.5716     0     0.0000
 bc2003_hr_m42_chab_ssp_150.spec          2.50000e9      0.00400     age150_m42      0.5463     0     0.0000
 bc2003_hr_m42_chab_ssp_161.spec          5.00000e9      0.00400     age161_m42      0.5228     0     0.0000
+bc2003_hr_m42_chab_ssp_185.spec         11.00000e9      0.00400     age185_m42      0.4980     0     0.0000
+bc2003_hr_m42_chab_ssp_193.spec         13.00000e9      0.00400     age193_m42      0.4927     0     0.0000
 bc2003_hr_m62_chab_ssp_020.spec          0.00100e9      0.02000     age020_m62      1.0000     0     0.0000
 bc2003_hr_m62_chab_ssp_045.spec          0.00316e9      0.02000     age045_m62      0.9858     0     0.0000
 bc2003_hr_m62_chab_ssp_055.spec          0.00501e9      0.02000     age055_m62      0.9342     0     0.0000
@@ -23,6 +25,12 @@ bc2003_hr_m62_chab_ssp_132.spec          0.64054e9      0.02000     age132_m62  
 bc2003_hr_m62_chab_ssp_139.spec          1.43400e9      0.02000     age139_m62      0.5865     0     0.0000
 bc2003_hr_m62_chab_ssp_150.spec          2.50000e9      0.02000     age150_m62      0.5610     0     0.0000
 bc2003_hr_m62_chab_ssp_161.spec          5.00000e9      0.02000     age161_m62      0.5353     0     0.0000
+bc2003_hr_m62_chab_ssp_185.spec         11.00000e9      0.02000     age185_m62      0.5103     0     0.0000
+bc2003_hr_m62_chab_ssp_193.spec         13.00000e9      0.02000     age193_m62      0.5047     0     0.0000
+bc2003_hr_m72_chab_ssp_090.spec          0.02512e9      0.05000     age090_m72      0.7902     0     0.0000
+bc2003_hr_m72_chab_ssp_125.spec          0.28612e9      0.05000     age125_m72      0.6618     0     0.0000
+bc2003_hr_m72_chab_ssp_139.spec          1.43400e9      0.05000     age139_m72      0.5847     0     0.0000
+bc2003_hr_m72_chab_ssp_161.spec          5.00000e9      0.05000     age161_m72      0.5320     0     0.0000
 # spec-file                               age [yr]            Z           code       Mstar    YAV?     a/Fe
 #
 # (edited) Output of Create_BC03_BaseFile.for 

@@ -308,7 +308,11 @@ class MuseSpec:
                     stdout = subprocess.PIPE, stderr = subprocess.PIPE)
                 proc.wait()
 
-
+    def wltopix(self, wl):
+        """ Converts wavelength as input into nearest integer pixel value """
+        pix = ((wl - self.wave[0]) / self.wlinc)
+        return max(0, int(round(pix)))
+        
 
     def writeFiles(self):
         """  Writes the data variable into a fits file """
