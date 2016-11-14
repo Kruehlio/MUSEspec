@@ -335,6 +335,23 @@ def getOH(s3d, meth='o3n2', sC=1, ra=None, dec=None, rad=None):
     return ohmap, snmap  
    
 
+def getQ(s3d, sC=1, ra=None, dec=None, rad=None):
+    # Fit to Kewley & Dopita 2002 [SIII]/[SII] vs. q models - looks weird
+#    a0, a1, a2, a3 = 6.7075, 1.1318, -0.0145, 0.1674
+#    qmap = 10**(a0 + a1*ls3s2 + a2*ls3s2**2 + a3*ls3s2**3)
+
+    logger.info( 'Deriving q map')
+    s3s2, s3s2sn = getIon(s3d, sC=sC, ra=ra, dec=dec, rad=rad)
+    ls3s2 = np.log10(1/s3s2)
+    # Morisset et al 2016.
+    qmap = -2.62 - 1.22*ls3s2
+    # Dors 2011
+    qmap = -3.09 - 1.36*ls3s2
+    if ra != None and dec != None and rad != None:
+        cenprop, avgprop, medprop, stdprop =\
+            _getProp(s3d, qmap, ra, dec, rad)
+    return qmap, s3s2sn
+
 def getIon(s3d, meth='S', sC=1, ra=None, dec=None, rad=None):
     """    Creates an ionization map, based on SIII/SII Kewley & Dopita 2002, using
     [SIII](9532) = 2.44 * [SIII](9069) from Mendoza & Zeipen 1982,

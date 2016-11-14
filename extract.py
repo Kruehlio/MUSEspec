@@ -356,32 +356,32 @@ def extract1d(s3d, ra=None, dec=None, x=None, y=None,
             Error values of extracted/combined spaxels
     """
 
-    if ra != None and dec != None:
+    if ra!=None and dec!=None:
         try:
             posx, posy = s3d.skytopix(ra, dec)
         except TypeError:
             posx, posy = s3d.sexatopix(ra, dec)
-    elif ell != None:
+    elif ell!=None:
         posx, posy, a, b, theta = ell
-    elif total == False:
+    elif total==False:
         posx, posy = x, y
 
     if radius==None and size==None and total==False and ell==None:
-        if verbose == 1:
+        if verbose==1:
             logger.info('Extracting pixel %i, %i' %(posx, posy))
         spec = np.array(s3d.data[:,posy, posx])
         err  = np.array(s3d.erro[:,posy, posx])
         return s3d.wave, spec, err
 
     if total==False and radius!=None:
-        if verbose == 1:
+        if verbose==1:
             logger.info('Creating extraction mask with radius %.1f arcsec' %radius)
         radpix = radius / s3d.pixsky
         x, y = np.indices(s3d.data.shape[0:2])
-
-        exmask = np.round(((x - posy)**2  +  (y - posx)**2)**0.5)
-        exmask[exmask <= radpix] = 1
+        exmask = ((x - posy)**2  +  (y - posx)**2)**0.5
+        exmask[exmask <= radpix+1E-8] = -1
         exmask[exmask > radpix] = 0
+        exmask = np.abs(exmask)
 
     elif total==False and size!=None:
         if verbose == 1:
@@ -430,7 +430,7 @@ def extract1d(s3d, ra=None, dec=None, x=None, y=None,
 
     spectra = np.array(spectra)
     errors = np.array(errors)
-    if s3d.verbose > 0:
+    if verbose > 0:
         logger.info('Used %i spaxels' %(nspec))
 
     if method == 'sum':
@@ -453,7 +453,8 @@ def extract1d(s3d, ra=None, dec=None, x=None, y=None,
 
     if pexmask == True:
         logger.info('Plotting extraction map')
-        pdfout(s3d, exmask, name='exmask', cmap = 'gist_gray')
+        pdfout(s3d, exmask, name='exmask', 
+               cmap = 'gist_gray')
     
     return s3d.wave, spec, err
 

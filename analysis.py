@@ -46,6 +46,7 @@ def anaSpec(s3d, wl, spec, err, plotLines=False, printFlux=True,
         pp = PdfPages('%s_%s_%s_lines.pdf' %(s3d.inst, s3d.target, name))
     f = open('%s_%s_%s_lines.txt' %(s3d.inst, s3d.target, name), 'w')
 
+    sigma = 2
     for line in lines:
         lp[line] = {}
 
@@ -64,21 +65,24 @@ def anaSpec(s3d, wl, spec, err, plotLines=False, printFlux=True,
         y = spec[p1:p2]/div
         e = err[p1:p2]/div
 
-        fixz = False
+        fixz, fixs = False, False
         if line in ['siii6312', 'ariii7135', 'ariii7751', 'oii7320',
              'oii7331', 'nii5755', 'hei5876']:
-                 fixz = True
+                 fixz, fixs = True, True
         
         if hasC == 0:
             gp = onedgaussfit(x, y, err=e,
-                  params = [0, np.nanmax(y), RESTWL[line]*(1+s3d.z), 2],
-                  fixed=[True,False,fixz,False])
+                  params = [0, np.nanmax(y), RESTWL[line]*(1+s3d.z), sigma],
+                  fixed=[True,False,fixz,fixs])
                   
         if hasC == 1:
             gp = onedgaussfit(x, y, err=e,
                   params = [np.nanmedian(y), np.nanmax(y), 
                             RESTWL[line]*(1+s3d.z), 2],
                   fixed=[False,False,fixz,False])          
+
+        if line in ['ha', 'oiiib', 'oiiia']:
+            sigma = gp[0][3]
 
         lineflg = gp[0][1]*gp[0][3]*(3.1416*2)**0.5
         linefleg = ((gp[2][1]/gp[0][1])**2 + (gp[2][3]/gp[0][3])**2)**0.5*lineflg
@@ -194,7 +198,12 @@ def anaSpec(s3d, wl, spec, err, plotLines=False, printFlux=True,
         sfr, sfre = mcSFR(lp['ha']['Flux'], lp['hb']['Flux'], s3d)
         print '\tSFR = %.3e +/- %.3e Msun/yr' %(sfr, sfre)
     
-
+    return {'EBV':[ebv, ebverro], 'ne':[n, ne], 'SFR':[sfr, sfre],
+    '12+log(O/H)(D16)': [oh, oherr], 
+    '12+log(O/H)(O3N2)':[oho3n2, oherro3n2], '12+log(O/H)(N2)': [ohn2, oherrn2], 
+    'T_e(SIII)': [tsiii, tsiiierr], 
+    'T_e(OII)':[toii], 'T_e(OIII)':[toiii],
+    '12+log(O/H)T(SIII)':[ohtoiii, ohtoiiie], '12+log(S/H)T(SIII)':[shsoiii, shsoiiie]}
 
 def metGrad(s3d, meth='S2', snlim = 1, nbin = 2, reff=None, incl=90, posang=0,
             ylim1=7.95, ylim2=8.6, xlim1=0, xlim2=3.45, r25=None,

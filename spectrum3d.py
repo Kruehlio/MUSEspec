@@ -23,7 +23,7 @@ from .functions import (deg2sexa, sexa2deg, ccmred)
 from .starlight import runStar, subStars, suballStars
 from .io import pdfout, fitsout, asciiout, cubeout, plotspec, distout
 from .maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
-                   getVel, getSeg, getRGB, getTemp, getOHT)
+                   getVel, getSeg, getRGB, getTemp, getOHT, getQ)
 
 from .extract import (extract1d, extract2d, extract3d, subtractCont,
                       getGalcen, cutCube, extractCont, RESTWL)
@@ -389,6 +389,9 @@ class Spectrum3d:
     def getOHT(self, toiii, toii, siii, **kwargs):
         return getOHT(self, toiii, toii, siii, **kwargs)
 
+    def getQ(self, **kwargs):
+        return getQ(self)
+
     def getIon(self, meth='S', **kwargs):
         return getIon(self)
 
@@ -420,7 +423,7 @@ class Spectrum3d:
         return getRGB(planes, **kwargs)
 
     def starlight(self, ascii, **kwargs):
-        return runStar(self, ascii)
+        return runStar(self, ascii,  **kwargs)
 
     def substarlight(self, x, y, **kwargs):
         subStars(self, x, y, **kwargs)

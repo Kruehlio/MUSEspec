@@ -30,7 +30,7 @@ logger.handlers = []
 logger.addHandler(ch)
 
 
-SL_BASE = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.M")
+SL_BASE = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.S")
 SL_CONFIG = os.path.join(os.path.dirname(__file__), "etc/MUSE_SLv01.config")
 SL_MASK = os.path.join(os.path.dirname(__file__), "etc/Masks.EmLines.SDSS.gm")
 SL_BASES = os.path.join(os.path.dirname(__file__), "etc/bases")
@@ -61,7 +61,7 @@ class StarLight:
             shutil.copytree(SL_BASES, os.path.join(self.cwd, 'bases'))
 
         if not os.path.isfile(SL_EXE):
-            print 'ERROR: STARLIGHT executable not found'
+            print ('ERROR: STARLIGHT executable not found')
             raise SystemExit
             
         if run == 1:
@@ -124,7 +124,8 @@ class StarLight:
         return time.time()-t1
 
        
-    def modOut(self, plot=1, minwl=4750, maxwl=5150):
+    def modOut(self, plot=1, minwl=4750, maxwl=5150, rm=True):
+        
         starwl, starfit = np.array([]), np.array([])
         datawl, data, gas, stars = 4*[np.array([])]
         success, run, norm = 0, 0, 1
@@ -133,8 +134,9 @@ class StarLight:
             f = open(self.output)
             output = f.readlines()
             f.close()
-            os.remove(self.sllog)
-            os.remove(self.output)
+            if rm == True:
+                os.remove(self.sllog)
+                os.remove(self.output)
             run = 1
         except IOError:
             pass
@@ -176,6 +178,7 @@ class StarLight:
                     ax.plot(starwl, starfit, '-', color ='green')
                     ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$',
                                fontsize=18)
+                
                 ax2.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=18)
                 ax1.set_xlim(minwl, maxwl)
                 ax2.set_xlim(6500, 6750)
@@ -188,7 +191,7 @@ class StarLight:
         
         
         
-def runStar(s3d, ascii, plot=1, verbose=1):
+def runStar(s3d, ascii, plot=1, verbose=1, rm=True):
     """ Convinience function to run starlight on an ascii file returning its
     spectral fit and bring it into original rest-frame wavelength scale again
     
@@ -213,7 +216,7 @@ def runStar(s3d, ascii, plot=1, verbose=1):
         logger.info('Starting starlight')
     t1 = time.time()
     sl = StarLight(filen=ascii)
-    datawl, data, stars, norm, success =  sl.modOut(plot=0)
+    datawl, data, stars, norm, success =  sl.modOut(plot=plot, rm=rm)
     zerospec = np.zeros(s3d.wave.shape)
 
     if success == 1:
@@ -224,6 +227,7 @@ def runStar(s3d, ascii, plot=1, verbose=1):
         t = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+s3d.z), 
                                                     stars*1E3*norm/(1+s3d.z))
         return s(s3d.wave), t(s3d.wave), success
+    
     else:
         if verbose ==1:
             logger.info('Starlight failed in %.2f s' %(time.time() - t1))
@@ -250,12 +254,14 @@ def subStars(s3d, x, y, size=0, verbose=1):
                       
     data, stars, success = runStar(s3d, ascii, verbose=0)
     os.remove(ascii)
+
     miny, maxy = max(0, y-size), min(s3d.leny-1, y+size+1)
     minx, maxx = max(0, x-size), min(s3d.lenx-1, x+size+1)
     
-    xindizes=np.arange(minx, maxx, 1)
-    yindizes=np.arange(miny, maxy, 1)
+    xindizes = np.arange(minx, maxx, 1)
+    yindizes = np.arange(miny, maxy, 1)
     zerospec = np.zeros(s3d.wave.shape)
+
     if success == 1:
 #            rs = data/spec
 #            logger.info('Resampling accuracy %.3f +/- %.3f' \
@@ -277,7 +283,7 @@ def subStars(s3d, x, y, size=0, verbose=1):
                 s3d.starcube[:, yindx, xindx] = zerospec
     return
     
-    
+
 def suballStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None):
     """ 
     Convinience function to subtract starlight fits on the full cube. Can work
@@ -287,19 +293,18 @@ def suballStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None):
     logger.info("Starting starlight on full cube with %i cores" %s3d.ncores)
     logger.info("This might take a bit")
     t1 = time.time()
+    
     if x1 != None and x2!= None:
         logger.info("X-range: %i to %i" %(x1, x2))
         xindizes = np.arange(x1, x2, 2*dx+1)
     else:
         xindizes = np.arange(dx, s3d.lenx, 2*dx+1)
+
     if y1 != None and y2!= None:
         logger.info("Y-range: %i to %i" %(y1, y2))
         yindizes = np.arange(y1, y2, 2*dx+1)
     else:
         yindizes = np.arange(dx, s3d.leny, 2*dx+1)
-
-#    
-#    
 
     for xindx in xindizes:
         for yindx in yindizes:
