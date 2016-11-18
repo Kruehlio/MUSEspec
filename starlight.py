@@ -30,7 +30,8 @@ logger.handlers = []
 logger.addHandler(ch)
 
 
-SL_BASE = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.S")
+SL_BASE_ALL = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.S")
+SL_BASE_FEW = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.N")
 SL_CONFIG = os.path.join(os.path.dirname(__file__), "etc/MUSE_SLv01.config")
 SL_MASK = os.path.join(os.path.dirname(__file__), "etc/Masks.EmLines.SDSS.gm")
 SL_BASES = os.path.join(os.path.dirname(__file__), "etc/bases")
@@ -45,7 +46,7 @@ class StarLight:
     """ StarLight class for fitting """
 
     def __init__(self, filen, verbose=0, minwl=3500, maxwl=9400,
-                 run=1):
+                 run=1, bases='FEW'):
         self.specfile = filen
         self.minwl=minwl
         self.maxwl=maxwl
@@ -55,7 +56,13 @@ class StarLight:
         self.seed = np.random.randint(1E6, 9E6)
         self.cwd = os.getcwd()
         self.inst = 'MUSE'
-        shutil.copy(SL_BASE, self.cwd)
+        if bases == 'FEW':
+            shutil.copy(SL_BASE_FEW, self.cwd)
+            self.bases = SL_BASE_FEW
+        elif bases == 'ALL':
+            shutil.copy(SL_BASE_ALL, self.cwd)
+            self.bases = SL_BASE_ALL
+           
         shutil.copy(SL_CONFIG, self.cwd)
         if not os.path.isdir(os.path.join(self.cwd, 'bases')):
             shutil.copytree(SL_BASES, os.path.join(self.cwd, 'bases'))
@@ -97,7 +104,7 @@ class StarLight:
 
         specline = {'spectrum': self.specfile, 
             'config': os.path.split(SL_CONFIG)[-1], 
-            'bases': os.path.split(SL_BASE)[-1], 
+            'bases': os.path.split(self.bases)[-1], 
             'masks': os.path.split(SL_MASK)[-1], 
             'red' : 'CAL', 
             'v0_start': 0,
@@ -119,12 +126,13 @@ class StarLight:
         # Cleanup
         if cleanup == True:
             shutil.rmtree('bases')
-            os.remove(os.path.join(self.cwd, os.path.split(SL_BASE)[-1]))
+            os.remove(os.path.join(self.cwd, os.path.split(self.bases)[-1]))
             os.remove(os.path.join(self.cwd, os.path.split(SL_CONFIG)[-1]))
         return time.time()-t1
 
        
-    def modOut(self, plot=1, minwl=4750, maxwl=5150, rm=True):
+    def modOut(self, plot=1, minwl=4750, maxwl=5150,
+               rm=True):
         
         starwl, starfit = np.array([]), np.array([])
         datawl, data, gas, stars = 4*[np.array([])]
@@ -191,7 +199,7 @@ class StarLight:
         
         
         
-def runStar(s3d, ascii, plot=1, verbose=1, rm=True):
+def runStar(s3d, ascii, plot=1, verbose=1, rm=True, bases='FEW'):
     """ Convinience function to run starlight on an ascii file returning its
     spectral fit and bring it into original rest-frame wavelength scale again
     
@@ -215,7 +223,7 @@ def runStar(s3d, ascii, plot=1, verbose=1, rm=True):
     if verbose == 1:
         logger.info('Starting starlight')
     t1 = time.time()
-    sl = StarLight(filen=ascii)
+    sl = StarLight(filen=ascii, bases=bases)
     datawl, data, stars, norm, success =  sl.modOut(plot=plot, rm=rm)
     zerospec = np.zeros(s3d.wave.shape)
 
