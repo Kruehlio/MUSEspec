@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
+
 Performs analysis on MUSE cubes
     metGrad : Plots the metallicity as a function of galaxy distance 
     voronoi_run : Runs a voronoi tesselation code
     voronoi_bin : Bins a 2d-map using voronoi tesselation
+
+
 """
 
 import numpy as np
