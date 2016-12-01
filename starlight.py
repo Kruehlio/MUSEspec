@@ -46,7 +46,7 @@ class StarLight:
     """ StarLight class for fitting """
 
     def __init__(self, filen, verbose=0, minwl=3500, maxwl=9400,
-                 run=1, bases='FEW'):
+                 run=1, bases='FEW', inst='MUSE'):
         self.specfile = filen
         self.minwl=minwl
         self.maxwl=maxwl
@@ -55,7 +55,7 @@ class StarLight:
         self.sllog = root+'_sl_log'+ext
         self.seed = np.random.randint(1E6, 9E6)
         self.cwd = os.getcwd()
-        self.inst = 'MUSE'
+        self.inst = inst
         if bases == 'FEW':
             shutil.copy(SL_BASE_FEW, self.cwd)
             self.bases = SL_BASE_FEW
@@ -131,7 +131,7 @@ class StarLight:
         return time.time()-t1
 
        
-    def modOut(self, plot=1, minwl=4750, maxwl=5150,
+    def modOut(self, plot=0, minwl=4750, maxwl=5150,
                rm=True):
         
         starwl, starfit = np.array([]), np.array([])
@@ -199,7 +199,7 @@ class StarLight:
         
         
         
-def runStar(s3d, ascii, plot=1, verbose=1, rm=True, bases='FEW'):
+def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='FEW'):
     """ Convinience function to run starlight on an ascii file returning its
     spectral fit and bring it into original rest-frame wavelength scale again
     
@@ -242,7 +242,7 @@ def runStar(s3d, ascii, plot=1, verbose=1, rm=True, bases='FEW'):
         return zerospec, zerospec, success
         
 
-def subStars(s3d, x, y, size=0, verbose=1):
+def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE'):
     """ Convinience function to subtract a starlight fit based on a single
     spectrum from many spaxels
     
@@ -255,9 +255,8 @@ def subStars(s3d, x, y, size=0, verbose=1):
         size : integer
             Size of square around center (x,y +/- size)
     """
-    
     wl, spec, err = s3d.extrSpec(x=x, y=y, size=size, verbose=0)
-    ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err, 
+    ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err,
                           name='%s_%s_%s' %(x, y, size), fmt='txt')
                       
     data, stars, success = runStar(s3d, ascii, verbose=0)

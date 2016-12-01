@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """ 
+
 Extraction from a data cube along specific dimensions
     getGalcen : Extracts center of galaxy
     extract1d : Extracts a single spectrum
     extract2d : Extracts a single plane
     extract3d : Extracts a subcube between two wavelengths
     cutCube : Extracts a subcube between pixel ranges
+    
 """
 
 import numpy as np
@@ -53,6 +55,7 @@ CWLS = {'ha' : [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
     'nii' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
     'niia' : [RESTWL['niia'], RESTWL['niia'], RESTWL['niib']],                   
     'niib' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
+    'nii5755' : [RESTWL['nii5755'], RESTWL['nii5755'], RESTWL['nii5755']],                   
     'siia' : [RESTWL['siia'],RESTWL['siia'], RESTWL['siib']],                   
     'siib' : [RESTWL['siib'], RESTWL['siia'], RESTWL['siib']],                   
     'sii' : [RESTWL['sii'], RESTWL['siia'], RESTWL['siib']],                   

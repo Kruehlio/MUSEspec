@@ -210,7 +210,7 @@ def getDens(s3d, sC=1):
 
 
     
-def getSFR(s3d, sC=1):
+def getSFR(s3d, sC=1, EBV=1):
     
     """ Uses Kennicut 1998 formulation to convert Ha flux into SFR. Assumes
     a Chabrier 2003 IMF, and corrects for host intrinsic E_B-V if the map
@@ -231,7 +231,7 @@ def getSFR(s3d, sC=1):
     haflux, haerr = s3d.extractPlane(line='ha', sC=sC, meth='sum')
     halum = 4 * np.pi * s3d.LDMP**2 * haflux * 1E-20
     
-    if s3d.ebvmap != None:
+    if s3d.ebvmap != None and EBV==1:
         logger.info( 'Correcting SFR for EBV')
         ebvcorr = s3d.ebvCor('ha')
         halum *= sp.ndimage.filters.median_filter(ebvcorr, 4)

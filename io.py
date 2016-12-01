@@ -42,6 +42,7 @@ def fitsin(fits):
     return data
 
 
+
 def fitsout(s3d, plane, smoothx=0, smoothy=0, name='', unit=''):
     """ Write the given plane into a fits file. Uses header of the original
     data. Returns nothing, but write a fits file.
@@ -142,7 +143,7 @@ def asciiout(s3d, wl, spec, err=None, resample=1, name='', div=3,
     
     
 
-def cubeout(s3d, cube, name='', err=True):
+def cubeout(s3d, cube, name='', err=[]):
     """ Writes a 3d cube in a fits file. Maintains original header. Removes
     file if already existing
     
@@ -152,8 +153,8 @@ def cubeout(s3d, cube, name='', err=True):
         3-d array which to write into a fits file
     name : str
         Name to use in fits file name    
-    err : Boolean
-        Write out error to file, write variance into second extinsion
+    err : np.array
+        Write variance into second extinsion
     """
     
     cubeout = '%s_%s_cube.fits' %(s3d.output, name)
@@ -162,9 +163,10 @@ def cubeout(s3d, cube, name='', err=True):
     hdu = pyfits.HDUList()
     hdu.append(pyfits.PrimaryHDU(header = s3d.headprim))
     hdu.append(pyfits.ImageHDU(data = cube, header = s3d.head))
-    if len(err) > 0:
+    if err!=[]:
         hdu.append(pyfits.ImageHDU(data = s3d.erro**2, header = s3d.headerro))
     hdu.writeto(cubeout)
+ 
  
  
 def distout(s3d, plane, minx, maxx, dx, 
@@ -174,7 +176,42 @@ def distout(s3d, plane, minx, maxx, dx,
             name='', label='', ra=None, dec=None, cumulative=True,
             norm=True):
     """Plot the distribution of spaxel parameters in plane. Highlight the
-    parameter at ra, dec if given
+    parameter at ra, dec if given.
+    
+    Parameters:
+    ----------
+    plane : np.array
+        2d plane of properties which to put in histogram
+    sel : np.array
+        2d plane with which to downselect spaxels in plane
+    minx : float
+        Minimum of parameter to appear in histogram
+    maxx : float
+        Maximum of parameter to appear in histogram
+    dx : float
+        Size of bin
+    logx : boolean
+        Logarithmic x-axis
+    cumulative : boolean
+        Cumulative histogram
+    norm : boolean
+        Normed y-axis        
+    plane2 : np.array
+        2d plane of second properties which to put in histogram
+    sel2 : np.array
+        2d plane with which to downselect spaxels in 2nd plane
+    plane3 : np.array
+        2d plane of second properties which to put in histogram   
+    sel3 : np.array
+        2d plane with which to downselect spaxels in 3rd plane
+    name : str
+        Name to use in output plot
+    label : str
+        Name to use for x-axis label
+    ra : str
+        Right ascension of position to highlight in plot
+    dec : str
+        Declination of position to highlight in plot
     """
 
     fig = plt.figure(figsize = (6,3.5))
