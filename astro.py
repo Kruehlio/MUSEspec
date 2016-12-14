@@ -62,7 +62,6 @@ def getebv(ra, dec, rv=3.08):
     
 ################################################################################
 
-
 def weighted_values(values, probabilities, size):
     bins = np.add.accumulate(probabilities)
     return values[np.digitize(random_sample(size), bins)]

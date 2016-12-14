@@ -32,6 +32,8 @@ logger.addHandler(ch)
 
 SL_BASE_ALL = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.S")
 SL_BASE_FEW = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.N")
+SL_BASE_BB = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.15lh")
+
 SL_CONFIG = os.path.join(os.path.dirname(__file__), "etc/MUSE_SLv01.config")
 SL_MASK = os.path.join(os.path.dirname(__file__), "etc/Masks.EmLines.SDSS.gm")
 SL_BASES = os.path.join(os.path.dirname(__file__), "etc/bases")
@@ -62,7 +64,10 @@ class StarLight:
         elif bases == 'ALL':
             shutil.copy(SL_BASE_ALL, self.cwd)
             self.bases = SL_BASE_ALL
-           
+        elif bases == 'BB':
+            shutil.copy(SL_BASE_BB, self.cwd)
+            self.bases = SL_BASE_BB
+            
         shutil.copy(SL_CONFIG, self.cwd)
         if not os.path.isdir(os.path.join(self.cwd, 'bases')):
             shutil.copytree(SL_BASES, os.path.join(self.cwd, 'bases'))
@@ -199,7 +204,7 @@ class StarLight:
         
         
         
-def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='FEW'):
+def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='ALL'):
     """ Convinience function to run starlight on an ascii file returning its
     spectral fit and bring it into original rest-frame wavelength scale again
     
@@ -242,7 +247,7 @@ def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='FEW'):
         return zerospec, zerospec, success
         
 
-def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE'):
+def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE', bases='ALL'):
     """ Convinience function to subtract a starlight fit based on a single
     spectrum from many spaxels
     
@@ -259,7 +264,7 @@ def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE'):
     ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err,
                           name='%s_%s_%s' %(x, y, size), fmt='txt')
                       
-    data, stars, success = runStar(s3d, ascii, verbose=0)
+    data, stars, success = runStar(s3d, ascii,bases=bases, verbose=0)
     os.remove(ascii)
 
     miny, maxy = max(0, y-size), min(s3d.leny-1, y+size+1)
@@ -291,7 +296,8 @@ def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE'):
     return
     
 
-def suballStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None):
+def subAllStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None,
+                bases = 'FEW'):
     """ 
     Convinience function to subtract starlight fits on the full cube. Can work
     with subcubes defined by x1, x2, y1, y2. Resamples is by a factor of dx.
@@ -315,7 +321,7 @@ def suballStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None):
 
     for xindx in xindizes:
         for yindx in yindizes:
-            subStars(s3d, xindx, yindx, dx, verbose=0)
+            subStars(s3d, xindx, yindx, dx, bases=bases, verbose=0)
             
     cubeout(s3d, s3d.starcube, err=s3d.erro, name='star')
     cubeout(s3d, s3d.data-s3d.starcube, err=s3d.erro, name='gas')

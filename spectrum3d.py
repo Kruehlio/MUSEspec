@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """ Spectrum class for 3d-spectra. Particularly MUSE."""
@@ -20,7 +19,7 @@ from astro import (LDMP, Avlaws, airtovac, ergJy,
                        abflux, getebv)
 
 from functions import (deg2sexa, sexa2deg, ccmred)
-from starlight import runStar, subStars, suballStars
+from starlight import runStar, subStars, subAllStars
 from io import pdfout, fitsout, asciiout, cubeout, plotspec, distout
 from maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
                    getVel, getSeg, getRGB, getTemp, getOHT, getQ)
@@ -427,8 +426,8 @@ class Spectrum3d:
     def substarlight(self, x, y, **kwargs):
         subStars(self, x, y, **kwargs)
 
-    def suball(self, **kwargs):
-        suballStars(self, **kwargs)
+    def subAllStars(self, **kwargs):
+        subAllStars(self, **kwargs)
 
     def pdfout(self, plane, **kwargs):
         pdfout(self, plane, **kwargs)
