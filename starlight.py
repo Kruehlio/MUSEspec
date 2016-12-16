@@ -47,17 +47,27 @@ else:
 class StarLight:
     """ StarLight class for fitting """
 
-    def __init__(self, filen, verbose=0, minwl=3500, maxwl=9400,
-                 run=1, bases='FEW', inst='MUSE'):
+    def __init__(self, filen, verbose=0, minwl=None, maxwl=None,
+                 run=1, bases='FEW', inst='MUSE', red='CAL'):
         self.specfile = filen
-        self.minwl=minwl
+        if minwl == None:
+            self.minwl=3330
+        else:
+            self.minwl=minwl
+        if maxwl == None:
+            self.maxwl=9400
+        else:
+            self.maxwl=maxwl
         self.maxwl=maxwl
+        self.cwd = os.getcwd()
         root, ext = os.path.splitext(filen)
-        self.output = root+'_sl_out'+ext
+
+        self.output = os.path.join(root+'_sl_out'+ext)
         self.sllog = root+'_sl_log'+ext
         self.seed = np.random.randint(1E6, 9E6)
-        self.cwd = os.getcwd()
         self.inst = inst
+        self.red = red
+        
         if bases == 'FEW':
             shutil.copy(SL_BASE_FEW, self.cwd)
             self.bases = SL_BASE_FEW
@@ -111,9 +121,9 @@ class StarLight:
             'config': os.path.split(SL_CONFIG)[-1], 
             'bases': os.path.split(self.bases)[-1], 
             'masks': os.path.split(SL_MASK)[-1], 
-            'red' : 'CAL', 
+            'red' : self.red, 
             'v0_start': 0,
-            'vd_start': 150, 
+            'vd_start': 50, 
             'output': self.output}
             
         f = open(name, 'w')
@@ -136,12 +146,12 @@ class StarLight:
         return time.time()-t1
 
        
-    def modOut(self, plot=0, minwl=4750, maxwl=5150,
+    def modOut(self, plot=0, minwl=3890, maxwl=4770,
                rm=True):
         
         starwl, starfit = np.array([]), np.array([])
         datawl, data, gas, stars = 4*[np.array([])]
-        success, run, norm = 0, 0, 1
+        success, run, norm, v0, vd, av = 0, 0, 1, -1, -1, -1
 
         try:
             f = open(self.output)
@@ -149,7 +159,13 @@ class StarLight:
             f.close()
             if rm == True:
                 os.remove(self.sllog)
-                os.remove(self.output)
+                slpath = os.path.join(self.cwd, 'sl_fits')
+                if not os.path.isdir(slpath):
+                    os.makedirs(slpath)
+                slout = os.path.join(slpath, self.output)
+                if os.path.isfile(slout):
+                    os.remove(slout)
+                shutil.move(self.output, os.path.join(self.cwd, 'sl_fits'))
             run = 1
         except IOError:
             pass
@@ -175,36 +191,51 @@ class StarLight:
                           datawl = np.append(datawl, outsplit[0])                    
                 except ValueError:
                     pass
-        
-            if plot == 1:
-                sel1 = (datawl > minwl) * (datawl < maxwl)
-                sel2 = (datawl > 6500) * (datawl < 6750)
                 
-                fig1 = plt.figure(figsize = (6,8.4))
-                fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
-                ax1 = fig1.add_subplot(2, 1, 1)
-                ax2 = fig1.add_subplot(2, 1, 2)
-                for ax in [ax1, ax2]:
+              if len(outsplit) == 3:
+                 if outsplit[1] == '[v0_min':
+                    v0 = float(outsplit[0])
+                 if outsplit[1] == '[vd_min':
+                    vd = float(outsplit[0])       
+                 if outsplit[1] == '[AV_min':
+                    av = float(outsplit[0])       
+
+            if plot == 1:
+                sel1 = (datawl > 4730) * (datawl < 5170)
+                sel2 = (datawl > 6480) * (datawl < 7020)
+                sel3 = (datawl > minwl) * (datawl < maxwl)
+               
+                fig1 = plt.figure(figsize = (5,8.4))
+                fig1.subplots_adjust(bottom=0.10, top=0.99, left=0.13, right=0.98)
+                ax1 = fig1.add_subplot(3, 1, 1)
+                ax2 = fig1.add_subplot(3, 1, 2)
+                ax3 = fig1.add_subplot(3, 1, 3)
+                for ax in [ax1, ax2, ax3]:
                     ax.plot(datawl, 0*datawl, '--', color ='grey')
                     ax.plot(datawl, gas, '-', color ='black')
                     ax.plot(datawl, data, '-', color ='firebrick', lw=2)
                     ax.plot(starwl, starfit, '-', color ='green')
                     ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$',
-                               fontsize=18)
+                               fontsize=13)
                 
-                ax2.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=18)
-                ax1.set_xlim(minwl, maxwl)
+                ax3.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=13)
+                ax3.set_xlim(minwl, maxwl)
                 ax2.set_xlim(6500, 6750)
+                ax1.set_xlim(4750, 5150)
+                
                 ax1.set_ylim(np.min(gas[sel1]), np.max(data[sel1])*1.05)
                 ax2.set_ylim(np.min(gas[sel2]), np.max(data[sel2])*1.05)
+                ax3.set_ylim(np.min(gas[sel3]), np.max(data[sel3])*1.05)
+
                 fig1.savefig('%s_starlight.pdf' %(self.inst))
                 plt.close(fig1)
                 
-        return datawl, data, stars, norm, success
+        return datawl, data, stars, norm, success, v0, vd, av
         
         
         
-def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='ALL'):
+def runStar(s3d, ascii, starres = None, minwl=None, maxwl=None,
+            plot=0, verbose=1, rm=True, bases='ALL'):
     """ Convinience function to run starlight on an ascii file returning its
     spectral fit and bring it into original rest-frame wavelength scale again
     
@@ -227,9 +258,16 @@ def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='ALL'):
     
     if verbose == 1:
         logger.info('Starting starlight')
+        
+    if starres == None:
+        starres =  '%s_star_res.txt' %(s3d.inst) 
+        if os.path.isfile(starres):
+            os.remove(starres)    
+            
     t1 = time.time()
-    sl = StarLight(filen=ascii, bases=bases)
-    datawl, data, stars, norm, success =  sl.modOut(plot=plot, rm=rm)
+    sl = StarLight(filen=ascii, bases=bases, minwl=minwl, maxwl=maxwl)
+    datawl, data, stars, norm, success, v0, vd, av =\
+        sl.modOut(plot=plot, rm=rm)
     zerospec = np.zeros(s3d.wave.shape)
 
     if success == 1:
@@ -239,15 +277,16 @@ def runStar(s3d, ascii, plot=0, verbose=1, rm=True, bases='ALL'):
                                                     data*1E3*norm/(1+s3d.z))
         t = sp.interpolate.InterpolatedUnivariateSpline(datawl*(1+s3d.z), 
                                                     stars*1E3*norm/(1+s3d.z))
-        return s(s3d.wave), t(s3d.wave), success
+        return s(s3d.wave), t(s3d.wave), success, v0, vd, av
     
     else:
         if verbose ==1:
             logger.info('Starlight failed in %.2f s' %(time.time() - t1))
-        return zerospec, zerospec, success
+        return zerospec, zerospec, success, v0, vd, av
         
 
-def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE', bases='ALL'):
+def subStars(s3d, x, y, size=0, verbose=1, 
+             inst='MUSE', bases='ALL', starres=None):
     """ Convinience function to subtract a starlight fit based on a single
     spectrum from many spaxels
     
@@ -260,11 +299,19 @@ def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE', bases='ALL'):
         size : integer
             Size of square around center (x,y +/- size)
     """
+    if starres == None:
+        starres = '%s_x%i_y%i_star_res.txt' %(s3d.inst, x, y)
+        if os.path.isfile(starres):
+            os.remove(starres)    
+            
     wl, spec, err = s3d.extrSpec(x=x, y=y, size=size, verbose=0)
     ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err,
                           name='%s_%s_%s' %(x, y, size), fmt='txt')
                       
-    data, stars, success = runStar(s3d, ascii,bases=bases, verbose=0)
+    data, stars, success, v0, vd, av = runStar(s3d, ascii, bases=bases, verbose=0)
+    f = open(starres, 'a')
+    f.write('%i\t%i\t%.1f\t%.1f\t%.3f\n' %(x, y, v0, vd, av))
+    f.close()
     os.remove(ascii)
 
     miny, maxy = max(0, y-size), min(s3d.leny-1, y+size+1)
@@ -291,7 +338,7 @@ def subStars(s3d, x, y, size=0, verbose=1, inst='MUSE', bases='ALL'):
     else:
         for xindx in xindizes:
             for yindx in yindizes:
-                # Np sucess
+                # No sucess
                 s3d.starcube[:, yindx, xindx] = zerospec
     return
     
@@ -300,7 +347,7 @@ def subAllStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None,
                 bases = 'FEW'):
     """ 
     Convinience function to subtract starlight fits on the full cube. Can work
-    with subcubes defined by x1, x2, y1, y2. Resamples is by a factor of dx.
+    with subcubes defined by x1, x2, y1, y2. Resamples by a factor of 2*dx+1.
     """
     
     logger.info("Starting starlight on full cube with %i cores" %s3d.ncores)
@@ -319,9 +366,15 @@ def subAllStars(s3d, dx=2, nc=None, x1=None, x2=None, y1=None, y2=None,
     else:
         yindizes = np.arange(dx, s3d.leny, 2*dx+1)
 
+    starres = '%s_x%i_%i_y%i_%i_star_res.txt' \
+        %(s3d.inst, xindizes[0], xindizes[-1], yindizes[0], xindizes[-1])
+    if os.path.isfile(starres):
+        os.remove(starres)
+
     for xindx in xindizes:
         for yindx in yindizes:
-            subStars(s3d, xindx, yindx, dx, bases=bases, verbose=0)
+            subStars(s3d, xindx, yindx, dx, 
+                     bases=bases, verbose=0, starres=starres)
             
     cubeout(s3d, s3d.starcube, err=s3d.erro, name='star')
     cubeout(s3d, s3d.data-s3d.starcube, err=s3d.erro, name='gas')

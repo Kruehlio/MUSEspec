@@ -420,10 +420,10 @@ class Spectrum3d:
     def rgb(self, planes, **kwargs):
         return getRGB(planes, **kwargs)
 
-    def starlight(self, ascii, **kwargs):
+    def runStar(self, ascii, **kwargs):
         return runStar(self, ascii,  **kwargs)
 
-    def substarlight(self, x, y, **kwargs):
+    def subStars(self, x, y, **kwargs):
         subStars(self, x, y, **kwargs)
 
     def subAllStars(self, **kwargs):
