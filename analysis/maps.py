@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 import time
 import scipy.constants as spc
 from joblib import Parallel, delayed
-from .fitter import onedgaussfit
+
+from ..utils.fitter import onedgaussfit
 from .extract import RESTWL, extract2d
 from .formulas import calcebv, calcohD16, calcDens
 import scipy.ndimage.filters

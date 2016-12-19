@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 
 """
-
 Performs analysis on MUSE cubes
     metGrad : Plots the metallicity as a function of galaxy distance 
     voronoi_run : Runs a voronoi tesselation code
     voronoi_bin : Bins a 2d-map using voronoi tesselation
-
 
 """
 
@@ -18,11 +16,11 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from .extract import getGalcen, RESTWL
 from .maps import getOH
-from .voronoi import voronoi
-from .astro import bootstrap, geterrs
-from .fitter import (linfit, onedgaussfit, onedgaussian, onedtwogaussian)
 from .formulas import (mcebv, mcohD16, mcTSIII, mcOHOIII, mcSHSIII, 
                 mcDens, mcohPP04, mcSFR)
+from ..utils.voronoi import voronoi
+from ..utils.astro import bootstrap, geterrs
+from ..utils.fitter import linfit, onedgaussfit
 
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'

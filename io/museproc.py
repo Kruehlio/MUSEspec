@@ -22,9 +22,9 @@ import zap
 import time
 import subprocess
 
-from MUSEspec.astro import airtovac
-from MUSEspec.functions import smooth, checkExec
-from MUSEspec.fitter import onedgaussfit
+from ..utils.astro import airtovac
+from ..utils.fitter import onedgaussfit
+from ..analysis.functions import smooth, checkExec
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'
@@ -199,7 +199,6 @@ class MuseSpec:
                 hdu.append(pyfits.PrimaryHDU(header = self.headprim))
                 hdu.append(pyfits.ImageHDU(data = bpimg, header = head))
                 hdu.writeto(mask)
-
 
 
     def cubezap(self, cube = None, skycube = None, mask = None, out = None,

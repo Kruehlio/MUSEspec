@@ -1,4 +1,3 @@
-#!/usr/bin/env python2.7
 # -*- coding: utf-8 -*-
 """
 Miscellaneous functions for astronomical use 
@@ -12,7 +11,7 @@ from xml.dom import minidom
 from urllib2 import urlopen
 
 from scipy import (special, log10, array, sqrt, sin, 
-                   exp, log, median, average, 
+                   exp, log, average, 
                    arange, meshgrid, std)
 from numpy.random import random_sample     
 import numpy as np  

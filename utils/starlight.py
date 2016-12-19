@@ -17,7 +17,7 @@ import platform
 import matplotlib.pyplot as plt
 import logging
 
-from .io import asciiout, cubeout
+from ..io.io import asciiout, cubeout
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'

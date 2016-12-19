@@ -1,10 +1,12 @@
+# -*- coding: utf-8 -*-
+
 import os
 import subprocess
 import numpy
 
 from pylab import median, mgrid, exp, pi, array
 from scipy import signal
-from MUSEspec.astro import isnumber, Avlaws
+from ..utils.astro import isnumber, Avlaws
 
 C1 = 2.99792458E8
 

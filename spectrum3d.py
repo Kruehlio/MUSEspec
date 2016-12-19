@@ -15,18 +15,21 @@ import multiprocessing
 import logging
 import sys
 
-from astro import (LDMP, Avlaws, airtovac, ergJy,
+from utils.astro import (LDMP, Avlaws, airtovac, ergJy,
                        abflux, getebv)
 
-from functions import (deg2sexa, sexa2deg, ccmred)
-from starlight import runStar, subStars, subAllStars
-from io import pdfout, fitsout, asciiout, cubeout, plotspec, distout
-from maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
+from analysis.functions import (deg2sexa, sexa2deg, ccmred)
+from analysis.maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
                    getVel, getSeg, getRGB, getTemp, getOHT, getQ)
-
-from extract import (extract1d, extract2d, extract3d, subtractCont,
+from analysis.extract import (extract1d, extract2d, extract3d, subtractCont,
                       getGalcen, cutCube, extractCont, RESTWL)
-from analysis import (metGrad, voronoi_bin, anaSpec)
+from analysis.analysis import (metGrad, voronoi_bin, anaSpec)
+              
+from utils.starlight import runStar, subStars, subAllStars
+from io.io import pdfout, fitsout, asciiout, cubeout, plotspec, distout
+
+
+
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
 datefmt= '%Y-%m-%d %H:%M:%S'

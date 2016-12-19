@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import LogFormatterMathtext
-from .functions import blur_image
+from ..analysis.functions import blur_image
 
 
 def fitsin(fits):

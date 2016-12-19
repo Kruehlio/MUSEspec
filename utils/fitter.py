@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 ===========
 Spectrum fitter
@@ -8,7 +10,7 @@ from numpy.ma import median
 from numpy import pi, sqrt, log, array, exp
 from mpfit import mpfit
 from scipy import special, interpolate
-from .functions import redlaw
+from ..analysis.functions import redlaw
 """ 
 The version of mpfit I use can be found here:
     http://code.google.com/p/agpy/source/browse/trunk/mpfit

@@ -15,8 +15,8 @@ import numpy as np
 import logging
 import time
 
-from .io import pdfout, plotspec
-from .fitter import onedgaussfit
+from ..io.io import pdfout, plotspec
+from ..utils.fitter import onedgaussfit
 
 
 logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
