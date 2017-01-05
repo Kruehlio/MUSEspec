@@ -324,6 +324,7 @@ class Spectrum3d:
             ax1.set_xlim(4650, 9300)
             fig1.savefig('%s_%s_photcorr.pdf' %(self.inst, self.target))
             plt.close(fig1)
+
         else:
             logger.warning("No scaling performed")
             logger.warning("Calculate scaling first with checkPhot")

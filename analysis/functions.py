@@ -264,25 +264,32 @@ def deg2sexa(ra, dec):
 
 ###########################################
 
-
 def sexa2deg(ra, dec):
     if isnumber(ra):
         retra = ra
     else:
         ra = ra.split(':')
-        retra = (float(ra[0])+float(ra[1])/60.+float(ra[2])/3600.)*15
+        try:
+            retra = (float(ra[0])+float(ra[1])/60.+float(ra[2])/3600.)*15
+        except ValueError:
+            raise SystemExit('ERROR: Coordinate formatting problem %s' %ra)        
 
     if isnumber(dec):
         retdec = dec
     else:
         dec = dec.split(':')
-        if float(dec[0]) < 0:
-            retdec = float(dec[0])-float(dec[1])/60.-float(dec[2])/3600.
-        else:
-            retdec = float(dec[0])+float(dec[1])/60.+float(dec[2])/3600.
-    return round(float(retra),6), round(float(retdec), 6)
-    
+        try:
+            if float(dec[0]) < 0:
+                retdec = float(dec[0])-float(dec[1])/60.-float(dec[2])/3600.
+            else:
+                retdec = float(dec[0])+float(dec[1])/60.+float(dec[2])/3600.
+        except ValueError:
+            raise SystemExit('ERROR: Coordinate formatting problem %s' %ra)        
 
+    retra = round(float(retra),6)
+    retdec = round(float(retdec), 6)
+    return retra, retdec
+    
 
 ###########################################
 

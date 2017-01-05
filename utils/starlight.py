@@ -30,17 +30,17 @@ logger.handlers = []
 logger.addHandler(ch)
 
 
-SL_BASE_ALL = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.S")
-SL_BASE_FEW = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.N")
-SL_BASE_BB = os.path.join(os.path.dirname(__file__), "etc/Base.BC03.15lh")
+SL_BASE_ALL = os.path.join(os.path.dirname(__file__), "../etc/Base.BC03.S")
+SL_BASE_FEW = os.path.join(os.path.dirname(__file__), "../etc/Base.BC03.N")
+SL_BASE_BB = os.path.join(os.path.dirname(__file__), "../etc/Base.BC03.15lh")
 
-SL_CONFIG = os.path.join(os.path.dirname(__file__), "etc/MUSE_SLv01.config")
-SL_MASK = os.path.join(os.path.dirname(__file__), "etc/Masks.EmLines.SDSS.gm")
-SL_BASES = os.path.join(os.path.dirname(__file__), "etc/bases")
+SL_CONFIG = os.path.join(os.path.dirname(__file__), "../etc/MUSE_SLv01.config")
+SL_MASK = os.path.join(os.path.dirname(__file__), "../etc/Masks.EmLines.SDSS.gm")
+SL_BASES = os.path.join(os.path.dirname(__file__), "../etc/bases")
 if platform.platform().startswith('Linux'):
-    SL_EXE = os.path.join(os.path.dirname(__file__), "etc/starlight")
+    SL_EXE = os.path.join(os.path.dirname(__file__), "../etc/starlight")
 else:
-    SL_EXE = os.path.join(os.path.dirname(__file__), "etc/starlight_mac")
+    SL_EXE = os.path.join(os.path.dirname(__file__), "../etc/starlight_mac")
 
 
 
@@ -54,11 +54,12 @@ class StarLight:
             self.minwl=3330
         else:
             self.minwl=minwl
+        
         if maxwl == None:
             self.maxwl=9400
         else:
             self.maxwl=maxwl
-        self.maxwl=maxwl
+            
         self.cwd = os.getcwd()
         root, ext = os.path.splitext(filen)
 
@@ -67,6 +68,10 @@ class StarLight:
         self.seed = np.random.randint(1E6, 9E6)
         self.inst = inst
         self.red = red
+
+        basewdir = os.path.join(self.cwd, 'bases')
+        if not os.path.isdir(basewdir):
+            os.makedirs(basewdir)
         
         if bases == 'FEW':
             shutil.copy(SL_BASE_FEW, self.cwd)
@@ -79,8 +84,15 @@ class StarLight:
             self.bases = SL_BASE_BB
             
         shutil.copy(SL_CONFIG, self.cwd)
-        if not os.path.isdir(os.path.join(self.cwd, 'bases')):
-            shutil.copytree(SL_BASES, os.path.join(self.cwd, 'bases'))
+        f = open(self.bases)
+        basescps = [g for g in f.readlines() if not g.startswith('#')]
+        f.close()
+        for basescp in basescps:
+            baseraw = os.path.join(SL_BASES, basescp.split()[0])
+            if os.path.isfile(baseraw):
+                shutil.copy(baseraw, basewdir)
+
+
 
         if not os.path.isfile(SL_EXE):
             print ('ERROR: STARLIGHT executable not found')
@@ -110,7 +122,7 @@ class StarLight:
                '[llow_SN]': 5200, 
                '[lupp_SN]': 5400, 
                '[Olsyn_ini]': self.minwl,
-               '[Olsyn_fin]': self.maxwl, 
+               '[Olsyn_fin]': self.maxwl,
                '[Odlsyn]':1.0, 
                '[fscale_chi2]':1.0, 
                '[FIT/FXK]': 'FIT',
@@ -146,7 +158,7 @@ class StarLight:
         return time.time()-t1
 
        
-    def modOut(self, plot=0, minwl=3890, maxwl=4770,
+    def modOut(self, plot=0, minwl=3860, maxwl=4470,
                rm=True):
         
         starwl, starfit = np.array([]), np.array([])
@@ -201,12 +213,13 @@ class StarLight:
                     av = float(outsplit[0])       
 
             if plot == 1:
-                sel1 = (datawl > 4730) * (datawl < 5170)
-                sel2 = (datawl > 6480) * (datawl < 7020)
-                sel3 = (datawl > minwl) * (datawl < maxwl)
+                sel1 = (datawl > minwl) * (datawl < maxwl)
+                sel2 = (datawl > 4730) * (datawl < 5230)
+                sel3 = (datawl > 6420) * (datawl < 7020)
+
                
                 fig1 = plt.figure(figsize = (5,8.4))
-                fig1.subplots_adjust(bottom=0.10, top=0.99, left=0.13, right=0.98)
+                fig1.subplots_adjust(bottom=0.10, top=0.99, left=0.15, right=0.98)
                 ax1 = fig1.add_subplot(3, 1, 1)
                 ax2 = fig1.add_subplot(3, 1, 2)
                 ax3 = fig1.add_subplot(3, 1, 3)
@@ -219,9 +232,9 @@ class StarLight:
                                fontsize=13)
                 
                 ax3.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=13)
-                ax3.set_xlim(minwl, maxwl)
-                ax2.set_xlim(6500, 6750)
-                ax1.set_xlim(4750, 5150)
+                ax1.set_xlim(minwl, maxwl)
+                ax3.set_xlim(6420, 6780)
+                ax2.set_xlim(4750, 5230)
                 
                 ax1.set_ylim(np.min(gas[sel1]), np.max(data[sel1])*1.05)
                 ax2.set_ylim(np.min(gas[sel2]), np.max(data[sel2])*1.05)
@@ -305,8 +318,8 @@ def subStars(s3d, x, y, size=0, verbose=1,
             os.remove(starres)    
             
     wl, spec, err = s3d.extrSpec(x=x, y=y, size=size, verbose=0)
-    ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err,
-                          name='%s_%s_%s' %(x, y, size), fmt='txt')
+    ascii = asciiout(s3d=s3d, wl=wl, spec=spec, err=err, frame='rest',
+                     resample = 1, name='%s_%s_%s' %(x, y, size), fmt='txt')
                       
     data, stars, success, v0, vd, av = runStar(s3d, ascii, bases=bases, verbose=0)
     f = open(starres, 'a')

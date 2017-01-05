@@ -82,8 +82,8 @@ def fitsout(s3d, plane, smoothx=0, smoothy=0, name='', unit=''):
     hdu.writeto(planeout)
     
     
-def asciiout(s3d, wl, spec, err=None, resample=1, name='', div=3,
-             frame = 'rest', fmt='spec'):
+def asciiout(s3d, wl, spec, err=None, resample=0, name='', div=3,
+             frame = 'obs', fmt='spec'):
     """ Write the given spectrum into a ascii file. 
     Returns name of ascii file, writes ascii file.
 
@@ -102,7 +102,7 @@ def asciiout(s3d, wl, spec, err=None, resample=1, name='', div=3,
     """
     asciiout = '%s_%s_%s.%s' %(s3d.inst, s3d.output, name, fmt)
     if s3d.z != None and frame == 'rest':
-#            logger.info('Moving to restframe')
+#        logger.info('Moving to restframe')
         wls = wl / (1+s3d.z)
         divspec = spec * (1+s3d.z) / 10**div
         if err != None:

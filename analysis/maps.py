@@ -36,14 +36,30 @@ def _getProp(s3d, propmap, ra, dec, rad):
     
     Parameters
     ----------    
-
-    Returns
-    -------    
+        propmap : 2d array
+            Map with the respective property values
+        ra : float or sexagesimal
+            Right ascension to return
+        dec : float or sexagesimal
+            Declination to return
+        rad : radius in pixel over which the property is calculated
+     Returns
+    -------
+        cenprop : float
+            Value at pixel closest to ra, dec         
+        avgprop : float
+            Average value in the circle around ra, dec, with radius rad
+        medprop : float
+            Median value in the circle around ra, dec, with radius rad
+        stdprop : float
+            Std deviation in the circle around ra, dec, with radius rad
     """
+
     try:
         posx, posy = s3d.skytopix(ra, dec)
     except TypeError:
         posx, posy = s3d.sexatopix(ra, dec)        
+
     x, y = np.indices(s3d.data.shape[0:2])
     logger.info('Getting properties at %s %s within %i spaxel' \
             %(ra, dec, rad))
@@ -64,42 +80,69 @@ def _getProp(s3d, propmap, ra, dec, rad):
     
 
 def getTemp(s3d, sC=0, meth='SIII', kappa=30, ne=100):
+
+    """ Calculates electron temperatures absed on auroral to nebular line ratios.
+    Following Nicholls et al. 2013. Uses [OIII](4363) to [OIII](5007),
+    [NII](5755) to [NII](6583) or [SIII](6312) to [SIII](9069) fluxes.
+    
+    Parameters
+    ----------
+        meth : str
+            Oxygen, Sulfur or Nitrogen temperatures. Options [SIII], [NII],
+            and [OIII]
+        sC : int
+            default 0, whether to estimate and subtract the continuum from line 
+        kappa : float
+            default 30. Kappa value with which to modify the typically obtained
+            Maxwell-Boltzmann value
+        ne : float
+            Assumed electron density
+    Returns
+    -------
+        toiii : float
+            Inferred or calculated electron temperature T[OIII]
+        toii : float
+            Inferred or calculated electron temperature T[OII]
+        tsiii : float
+            Inferred or calculated electron temperature T[SIII]
+        tkin : float
+            Inferred electron temperature with the kappa value
+        sn : float
+            Signal to noise ratio of the auroral line detection
+    """
     
     t = 1E4
+    ebvmap, snmap = getEBV(s3d, sC=sC)
+    
     if meth in ['SIII', 'siii']:
-        ebvmap, snmap = getEBV(s3d, sC=sC)
-
-        siii, siiie = s3d.extractPlane(line='siii', sC=sC, meth='sum')
-        siii *= s3d.ebvCor('siii')
-
-        siiiau, siiiaue = s3d.extractPlane(line='siii6312', sC=sC, meth='sum')
-        siiiau *= s3d.ebvCor('siii6312')
-        
+        nl, aul = 'siii', 'siii6312'
         a, b, c, d = 10719, 0.09519, 1.03510, 6.5E-3
         a1, a2, a3 = 1.00075, 1.09519, 3.21668
         b1, b2, b3 = 13.3016, 24396.2, 57160.4   
-        auf, f, aufe = siiiau, siii, siiiaue
     
     if meth in ['OIII', 'oiii']:
-        oiii, oiiie = s3d.extractPlane(line='oiiib', sC=sC, meth='sum')
-        oiiiau, oiiiaue = s3d.extractPlane(line='oiii4363', sC=sC, meth='sum')
-        a, b, c, d = 13229, 0.92350, 0.98196, 3.8895E-04
+        nl, aul = 'oiiib', 'oiii4363'
+        a, b, c, d = 13229, 0.79432, 0.98196, 3.8895E-04
         a1, a2, a3 = 1.00036, 1.27142, 3.55371
         b1, b2, b3 = 21.1751, 42693.5, 103086.
-        auf, f, aufe = 1.33*oiiiau, oiii, aufe
-
+        
     if meth in ['NII', 'nii']:
-        nii, niie = s3d.extractPlane(line='niib', sC=sC, meth='sum')
-        niiau, niiaue = s3d.extractPlane(line='nii5755', sC=sC, meth='sum')
+        nl, aul = 'niib', 'nii5755'
         a, b, c, d  = 10873, 0.76348, 1.01350, 3.6E-3     
         a1, a2, a3 = 1.0008, 1.26281, 3.06569
         b1, b2, b3 = 19.432, 31701.9, 70903.4  
-        auf, f, aufe = niiau, nii, niiaue
+
+    nf, nfe = s3d.extractPlane(line=nl, sC=sC, meth='sum')
+    auf, aufe = s3d.extractPlane(line=aul, sC=sC, meth='sum')
+    nf *= s3d.ebvCor(nl)
+    auf *= s3d.ebvCor(aul)
+    aufe *= s3d.ebvCor(aul)
     
     for n in range(40):
-        t = a * (-np.log10((auf/f)/(1 + d*(100./t**0.5))) - b)**(-c) 
+        t = a * (-np.log10((auf/nf)/(1 + d*(100./t**0.5))) - b)**(-c) 
 
     a, b, c = -0.546, 2.645, -1.276
+    
     if meth in ['SIII', 'siii']:
         c -= t/1E4
         toiii = ((-b + (b**2 - 4*a*c)**0.5) / (2*a))*1E4
@@ -121,6 +164,32 @@ def getTemp(s3d, sC=0, meth='SIII', kappa=30, ne=100):
 
 
 def getOHT(s3d, toiii, toii, tsiii, meth = 'O', sC=0):
+
+    """ Calculates abundances based on electron temperatures and line fluxes.
+    Following Nicholls et al. 2013. Uses [OII](7320, 7331), [OIII](5007),
+    Hbeta, [SII](6717, 6731) and [SIII](6312) fluxes.
+    
+    Parameters
+    ----------
+        toiii : float
+            [OIII] electron temperature in 10^4 K
+        toii : float
+            [OII] electron temperature in 10^4 K
+        tsiii : float
+            [SIII] electron temperature in 10^4 K 
+        meth : str
+            Oxygen or Sulfur abundances. Options O or S
+        sC : int
+            default 0, whether to estimate and subtract the continuum from line            
+    Returns
+    -------
+        logoh : float
+            total abundance of element  (summed over ionization)         
+        logoih : float
+            abundance of single ionized element   
+        logoiih : float
+            abundance of double ionized element   
+    """
     
     x = 10**(-4)*100*toiii**(-0.5)
     hb, hbe = s3d.extractPlane(line='Hb', sC=sC, meth='sum')
@@ -158,7 +227,26 @@ def getOHT(s3d, toiii, toii, tsiii, meth = 'O', sC=0):
 
 
 def getRGB(planes, minval=None, maxval=None, scale='lin'):
-    """ Creates and rgb image from three input planes (bgr) """
+    
+    """ Creates an RGB image from three input planes (bgr) with scaling
+    
+    Parameters
+    ----------
+        planes : list of three np.array
+            List of exactly three input planes of equal size, which will be 
+            mapped to the RGB channels of the output image. Order is bgr.
+        minval : list of three floats
+            Minimum cube value for scaling, must also be in a list length 3
+        maxval : list of three floats
+            Maximum cube value for scaling, must also be in a list length 3   
+        scale : str
+            Options lin, sqrt, log. Scaling of the output images, options 
+            correspond to linear, square root and logarithmic scaling
+    Returns
+    -------
+        img : np.array
+            Contains the scaled image to be plotted using matplotlib imshow         
+    """
 
     if len(planes) != 3:
         logger.error('There must be three input planes')
@@ -194,6 +282,11 @@ def getDens(s3d, sC=1):
     
     """ Derive electron density map, using the [SII] doublet and based on 
     the model of O'Dell et al. 2013 using Osterbrock & Ferland 2006
+
+    Parameters
+    ----------
+        sC : int
+            default 1, whether to subtract the continuum from line
     Returns
     -------
         nemap : np.array
@@ -218,6 +311,12 @@ def getSFR(s3d, sC=1, EBV=1):
     has previously been calculated. No Parameters. Requires the redshift to
     be set, to calculate the luminosity distance.
 
+    Parameters
+    ----------
+        sC : int
+            default 1, whether to subtract the continuum from line
+        EBV : int
+            default 1, whether to correct the SFR for reddening
     Returns
     -------
         sfrmap : np.array

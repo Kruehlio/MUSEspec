@@ -251,14 +251,14 @@ class MuseSpec:
             for j in np.arange(15):
                 try:
                     skyindex = np.random.randint(low = 0, high = max(3000, len(workimg)/10))
+
                     skymedreg = np.where(image == workimg[skyindex])
-                    skyreg = image[max(0, skymedreg[0]-15) : min(skymedreg[0]+15, lenx-1),
-                                   max(0, skymedreg[1]-15) : min(skymedreg[1]+15, leny-1)]
+                    skyreg = image[max(0, skymedreg[0][0]-15) : min(skymedreg[0][0]+15, lenx-1),
+                                   max(0, skymedreg[1][0]-15) : min(skymedreg[1][0]+15, leny-1)]
                     skyregs = np.append(skyregs, skyreg)
                 except (ValueError, IndexError):
                     pass
             skyregs = skyregs[~np.isnan(skyregs)]
-
             yfit, bins = np.histogram(skyregs, bins=30)
             xfit = (bins[1]-bins[0])/2. + bins
             params = onedgaussfit(xfit[:-1], yfit, #err = yfit**0.5,
