@@ -637,12 +637,14 @@ def getBPT(s3d, snf=5, snb=5, sC=0, xlim1=-1.65, xlim2=0.3, ylim1=-1, ylim2=1,
     kf0 = np.arange(-1.7, 0.0, 0.01)
 
     x = -0.596*kf3**2 - 0.687 * kf3 -0.655
-    kfz0 = 0.61/((kf0)-0.02-0.1833*0)+1.2+0.03*0
+    kfz0 = 0.61/((kf0)-0.02-0.1833*0) + 1.2 + 0.03*0
 
-    # SDSS ridgeline
+    # SDSS ridgeline (Brinchmann et al., 2008)
     ax1.plot(x, kf3,  '-', lw = 1.5, color = '0.0')
-    # AGN/SF discrimination at z = 0
+    
+    # AGN/SF discrimination at z = 0 Kewley et al., 2013
     ax1.plot(kf0, kfz0, '--', lw = 2.5, color = '0.2')
+    
     ax1.set_xlim(xlim1, xlim2)
     ax1.set_ylim(ylim1, ylim2)
     ax1.set_xlabel(r'$\log({[\mathrm{NII}]\lambda 6584/\mathrm{H}\alpha})$',

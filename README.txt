@@ -17,7 +17,13 @@ s.setRedshift(0.0086)
 s.ebvGal()
 
 # Get EW map for Halpha
-haew = s.getEW(line='Ha')
+haew, haewsn, cont = s.getEW(line='Ha')
+
+#haew = EW map of Halpha
+#haewsn = S/N map of haew
+#cont = Continuum flux around Halpha
+
+
 
 # Plot Ha EW map
 s.pdfout(np.log10(haew), name = 'EW', label = r'$\log10(\mathrm{EW}(H\alpha))$',
