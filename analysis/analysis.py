@@ -39,7 +39,7 @@ def anaSpec(s3d, wl, spec, err, plotLines=False, printFlux=True,
     
     lines = ['ha', 'hb', 'niia', 'niib', 'siia', 'siib', 'oiiia', 'oiiib',
              'siii6312', 'siii', 'ariii7135', 'ariii7751', 'oii7320',
-             'oii7331', 'nii5755', 'hei5876']
+             'oii7331', 'nii5755', 'hei5876', 'hei4922']
            
     lp = {}           
            
@@ -69,7 +69,7 @@ def anaSpec(s3d, wl, spec, err, plotLines=False, printFlux=True,
         fixz, fixs = False, False
         if line in ['siii6312', 'ariii7135', 'ariii7751', 'oii7320',
              'oii7331', 'nii5755', 'hei5876']:
-                 fixz, fixs = True, True
+                 fixz, fixs = False, False
         
         if hasC == 0:
             gp = onedgaussfit(x, y, err=e,

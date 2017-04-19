@@ -35,12 +35,12 @@ RESTWL = {'oi': 6302.046,
       'oii7320': 7322.010, 'oii7331':7332.3,
       'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii':5008.240,
       'hd': 4102.9351, 'hg' : 4341.69, 'hb' : 4862.68, 'ha' : 6564.61,
-      'siia':6718.29, 'siib': 6732.68, 'siii': 9071.1, 'sii':6725.48,
+      'siia':6718.29, 'siib': 6732.68, 'sii':6725.48,
       'siii6312': 6313.8, 'siii':9071.1, 'siii9531':9533.2,
       'sii4068': 4069.749,
       'neiii' : 3869.81,
       'nii5755': 5756.24, 'niia':6549.86, 'niib': 6585.27,
-      'ariii7135':7137.8, 'ariii7751':7753.2,
+      'ariii7135':7137.8, 'ariii7751':7753.2, 'hei4922':4923.305,
       'heii5411':5413.030, 'hei5015':5017.0765, 'hei5876':5877.243, 'hei6680':6679.99}
 
 
@@ -61,6 +61,7 @@ CWLS = {'ha' : [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
     'sii' : [RESTWL['sii'], RESTWL['siia'], RESTWL['siib']],                   
     'siii' : [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
     'siii' : [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
+    'hei4922' : [RESTWL['hei4922'], RESTWL['hei4922'], RESTWL['hei4922']],
     'oii7320' : [RESTWL['oii7320'], RESTWL['oii7320'], RESTWL['oii7320']],
     'oii7331' : [RESTWL['oii7331'], RESTWL['oii7331'], RESTWL['oii7331']],
     'ariii7135' : [RESTWL['ariii7135'], RESTWL['ariii7135'], RESTWL['ariii7135']],
@@ -183,7 +184,8 @@ def extract3d(s3d, wl1=None, wl2=None):
 
 
 
-def extract2d(s3d, wl1='', wl2='', c1='', c2 = '', z=None, line=None, dv=120, dwl=None,
+def extract2d(s3d, wl1='', wl2='', c1='', c2 = '', 
+              z=None, line=None, dv=120, dwl=None,
                  meth = 'sum', sC=0, v=0, pSpec=False):
     """Extracts a single plane, summed/averaged/medianed between two wave-
     lenghts, or for a single emission line. If the line is known to the code, 
@@ -219,6 +221,7 @@ def extract2d(s3d, wl1='', wl2='', c1='', c2 = '', z=None, line=None, dv=120, dw
 
     if z == None: z = s3d.z
     if z == None: z = 0
+
     if wl1 != '' and c1 == '':
         c1 = 5
     if wl2 != '' and c2 == '':
@@ -234,6 +237,10 @@ def extract2d(s3d, wl1='', wl2='', c1='', c2 = '', z=None, line=None, dv=120, dw
         elif line != None:
             logger.error('Line %s not known' %line)      
             raise SystemExit
+        if cont2 > s3d.wave[-1]:
+            logger.error('Line %s outside of WL range' %line)      
+            raise SystemExit       
+            
         if dwl == None:
             p1 = max(0, s3d.wltopix(wl - 2.3538*dv/c*wl))
             p2 = max(p1+1, s3d.wltopix(wl +  2.3538*dv/c*wl))

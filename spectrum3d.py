@@ -26,7 +26,7 @@ from analysis.extract import (extract1d, extract2d, extract3d, subtractCont,
 from analysis.analysis import (metGrad, voronoi_bin, anaSpec)
               
 from utils.starlight import runStar, subStars, subAllStars
-from io.io import pdfout, fitsout, asciiout, cubeout, plotspec, distout
+from io.io import pdfout, fitsout, asciiout, cubeout, plotspec, distout, asciiin
 
 
 
@@ -110,7 +110,7 @@ class Spectrum3d:
 
 
 
-    def setFiles(self, filen, fluxmult=1, dAxis=3, mult=1):
+    def setFiles(self, filen, fluxmult=1, dAxis=3, mult=1, data=True, ext=1):
         """ Uses pyfits to set the header, data and error as instance attributes.
         The fits file should have at least two extension, where the first containst
         the data, the second the variance. Returns nothing.
@@ -124,20 +124,24 @@ class Spectrum3d:
         # Get primary header
         self.headprim = pyfits.getheader(filen, 0)
         # Get header of data extension
-        self.head = pyfits.getheader(filen, 1)
-        # Read in data
-        self.data = pyfits.getdata(filen, 1)
+        self.head = pyfits.getheader(filen, ext)
+        if data == True:
+            # Read in data
+            self.data = pyfits.getdata(filen, ext)
+            self.starcube = np.zeros(self.data.shape, dtype='>f4')
         try:
             self.headerro = pyfits.getheader(filen, 2)
             # Read in variance and turn into stdev
-            self.erro = pyfits.getdata(filen, 2)**0.5
+            if data == True:
+                self.erro = pyfits.getdata(filen, 2)**0.5
         except IndexError:
             pass
+
         wlkey, wlstart = 'NAXIS%i'%dAxis, 'CRVAL%i'%dAxis
         wlinc, wlpixst = 'CD%i_%i'%(dAxis, dAxis), 'CRPIX%i'%dAxis
         pix = np.arange(self.head[wlkey]) + self.head[wlpixst]
         self.pix = pix
-        # Create wave array from fits info
+            # Create wave array from fits info
         self.wave = airtovac(self.head[wlstart] + (pix - 1) * self.head[wlinc])
 
         self.pixsky = (self.head['CD1_1']**2 + self.head['CD1_2']**2) ** 0.5 * 3600
@@ -152,7 +156,6 @@ class Spectrum3d:
         self.base, self.ext = filen.split('.fits')[0], '.fits'
         logger.info( 'Fits cube loaded %s' %(filen))
         logger.info( 'Wavelength range %.1f - %.1f (vacuum)' %(self.wave[0], self.wave[-1]))
-        self.starcube = np.zeros(self.data.shape, dtype='>f4')
 
 
 
@@ -241,7 +244,7 @@ class Spectrum3d:
         return ebvcorr
 
 
-    def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7):
+    def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7, magerr=1E-3):
         """ Uses synthetic photometry at a given position in a given band at a
         given magnitude to check the flux calibration of the spectrum.
         Returns nothing.
@@ -262,9 +265,8 @@ class Spectrum3d:
             Radius in pixel around ra/dec for specturm extraction
         """
 
-        ABcorD = {'g':-0.062, 'V':0.00, 'r':0.178,
-                 'R':0.21, 'i':0.410, 'I':0.45, 'z':0.543}
-        wls = {'g': [3856.2, 5347.7], 'r': [5599.5, 6749.0], 'i': [7154.9, 8156.6],
+        ABcorD = {'V':0.00, 'r':0.178, 'R':0.21, 'i':0.410, 'I':0.45, 'z':0.543}
+        wls = {'r': [5500., 6832.], 'i': [7000., 7960.],
            'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4],
            'I': [7210., 8750.], 'F814': [6884.0, 9659.4], 'z': [8250.0, 9530.4]}
 
@@ -283,9 +285,10 @@ class Spectrum3d:
         avgwl = np.nanmedian(wl[bandsel])
         fluxspec = ergJy(avgflux, avgwl)
         fluxref = abflux(mag)
+        
         logger.info('Scale factor from spectrum to photometry for %s-band: %.3f' \
           %(band, fluxref/fluxspec))
-        self.scale.append([avgwl, fluxref/fluxspec])
+        self.scale.append([avgwl, fluxref/fluxspec, magerr])
 
 
 
@@ -304,8 +307,9 @@ class Spectrum3d:
         if self.scale != []:
             sfac = np.array(self.scale)[:,1]
             wls = np.array(self.scale)[:,0]
+            err = np.array(self.scale)[:,2]
 
-            b = np.polyfit(x=wls, y=sfac, deg=deg)
+            b = np.polyfit(x=wls, y=sfac, w=1./err, deg=deg)
             logger.info('Scaling spectrum by ploynomial of degree '\
                        + '%i to %i photometric points' %(deg, len(sfac)))
             logger.info('Linear term %.e' %(b[0]))
@@ -313,10 +317,12 @@ class Spectrum3d:
             corrf = p(self.wave)
             self.data *= corrf[:,np.newaxis, np.newaxis]
             self.erro *= corrf[:,np.newaxis, np.newaxis]
+            
             fig1 = plt.figure(figsize = (6,4.2))
             fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
             ax1 = fig1.add_subplot(1, 1, 1)
-            ax1.errorbar(wls, sfac, ms=8, fmt='o', color='firebrick')
+            ax1.errorbar(wls, sfac, yerr=err, capsize=0, 
+                         ms=8, fmt='o', color='firebrick')
             ax1.plot(self.wave, corrf, '-', color ='black')
             ax1.plot(self.wave, np.ones(len(corrf)), '--', color='black')
             ax1.set_xlabel(r'$\rm{Observed\,wavelength\,(\AA)}$', fontsize=18)
@@ -330,7 +336,8 @@ class Spectrum3d:
             logger.warning("Calculate scaling first with checkPhot")
 
 
-    def astro(self, starras, stardecs, ras, decs):
+    def astro(self, starras=[], stardecs=[], ras=[], decs=[],
+                    starxs = [], starys = []):
         """Correct MUSE astrometry: Starra and stardec are lists of the original
         coordinates of a source in the MUSE cube with actual coordinates ra, dec.
         Returns nothing, but changes the header keywords CRVAL1 and CRVAL2 in
@@ -350,6 +357,12 @@ class Spectrum3d:
             decs : list
                 List of declinations true positions of reference stars
         """
+        if starxs != [] and starys != []:
+            for starx, stary in zip(starxs, starys):
+                ra, dec = self.pixtosky(starx, stary)
+                starras.append(ra)
+                stardecs.append(dec)
+        print starras, stardecs
 
         if len(starras) != len(stardecs) or len(ras) != len(decs) or \
            len(starras) != len(ras):
@@ -447,6 +460,9 @@ class Spectrum3d:
 
     def asciiout(self, wl, spec, **kwargs):
         return asciiout(self, wl, spec, **kwargs)
+
+    def asciiin(self, ascii, **kwargs):
+        return asciiin(self, ascii, **kwargs)
 
     def plotspec(self, wl, spec, **kwargs):
         return plotspec(self, wl, spec, **kwargs)

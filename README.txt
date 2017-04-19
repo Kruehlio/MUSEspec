@@ -23,7 +23,9 @@ haew, haewsn, cont = s.getEW(line='Ha')
 #haewsn = S/N map of haew
 #cont = Continuum flux around Halpha
 
+# Apply S/N thresholding
 
+haew[sn < 5] = np.nan
 
 # Plot Ha EW map
 s.pdfout(np.log10(haew), name = 'EW', label = r'$\log10(\mathrm{EW}(H\alpha))$',

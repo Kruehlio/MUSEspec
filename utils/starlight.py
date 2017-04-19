@@ -213,7 +213,8 @@ class StarLight:
                     av = float(outsplit[0])       
 
             if plot == 1:
-                sel1 = (datawl > minwl) * (datawl < maxwl)
+                sel0 = (datawl > minwl) * (datawl < maxwl)
+                sel1 = (datawl > 3860) * (datawl < 4630)
                 sel2 = (datawl > 4730) * (datawl < 5230)
                 sel3 = (datawl > 6420) * (datawl < 7020)
 
@@ -225,23 +226,40 @@ class StarLight:
                 ax3 = fig1.add_subplot(3, 1, 3)
                 for ax in [ax1, ax2, ax3]:
                     ax.plot(datawl, 0*datawl, '--', color ='grey')
-                    ax.plot(datawl, gas, '-', color ='black')
-                    ax.plot(datawl, data, '-', color ='firebrick', lw=2)
-                    ax.plot(starwl, starfit, '-', color ='green')
+                    ax.plot(datawl, norm*gas, '-', color ='black')
+                    ax.plot(datawl, norm*data, '-', color ='firebrick', lw=2)
+                    ax.plot(starwl, norm*starfit, '-', color ='green')
                     ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$',
-                               fontsize=13)
+                               fontsize=16)
                 
-                ax3.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=13)
-                ax1.set_xlim(minwl, maxwl)
+                ax3.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=16)
+                ax1.set_xlim(3860, 4630)
                 ax3.set_xlim(6420, 6780)
                 ax2.set_xlim(4750, 5230)
                 
-                ax1.set_ylim(np.min(gas[sel1]), np.max(data[sel1])*1.05)
-                ax2.set_ylim(np.min(gas[sel2]), np.max(data[sel2])*1.05)
-                ax3.set_ylim(np.min(gas[sel3]), np.max(data[sel3])*1.05)
+                ax1.set_ylim(norm*np.min(gas[sel1]), norm*np.max(data[sel1])*1.05)
+                ax2.set_ylim(norm*np.min(gas[sel2]), norm*np.max(data[sel2])*1.05)
+                ax3.set_ylim(norm*np.min(gas[sel3]), norm*np.max(data[sel3])*1.05)
 
                 fig1.savefig('%s_starlight.pdf' %(self.inst))
                 plt.close(fig1)
+
+                fig2 = plt.figure(figsize = (8,5))
+                fig2.subplots_adjust(bottom=0.14, top=0.99, left=0.12, right=0.98)
+                ax = fig2.add_subplot(1, 1, 1)
+                ax.plot(datawl, 0*datawl, '--', color ='grey')
+                ax.plot(datawl, norm*gas, '-', color ='black')
+                ax.plot(datawl, norm*data, '-', color ='firebrick', lw=2)
+                ax.plot(starwl, norm*starfit, '-', color ='green')
+                ax.set_ylabel(r'$F_{\lambda}\,\rm{(10^{-17}\,erg\,s^{-1}\,cm^{-2}\, \AA^{-1})}$',
+                               fontsize=16)
+                
+                ax.set_xlabel(r'Restframe wavelength $(\AA)$', fontsize=16)
+                ax.set_xlim(np.min(datawl[sel0]), np.max(datawl[sel0]))
+                ax.set_ylim(norm*np.min(gas[sel0]), norm*np.max(data[sel0])*1.05)
+
+                fig2.savefig('%s_starlight_all.pdf' %(self.inst))
+                plt.close(fig2)
                 
         return datawl, data, stars, norm, success, v0, vd, av
         
@@ -280,7 +298,7 @@ def runStar(s3d, ascii, starres = None, minwl=None, maxwl=None,
     t1 = time.time()
     sl = StarLight(filen=ascii, bases=bases, minwl=minwl, maxwl=maxwl)
     datawl, data, stars, norm, success, v0, vd, av =\
-        sl.modOut(plot=plot, rm=rm)
+        sl.modOut(plot=plot, rm=rm, minwl=minwl, maxwl=maxwl)
     zerospec = np.zeros(s3d.wave.shape)
 
     if success == 1:

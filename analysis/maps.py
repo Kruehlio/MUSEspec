@@ -60,6 +60,10 @@ def _getProp(s3d, propmap, ra, dec, rad):
     except TypeError:
         posx, posy = s3d.sexatopix(ra, dec)        
 
+    if posx < 0 or posy < 0:
+        logger.warning('Coordinate out of bounds')
+        return np.nan, np.nan, np.nan, np.nan
+        
     x, y = np.indices(s3d.data.shape[0:2])
     logger.info('Getting properties at %s %s within %i spaxel' \
             %(ra, dec, rad))
@@ -226,7 +230,7 @@ def getOHT(s3d, toiii, toii, tsiii, meth = 'O', sC=0):
         return logsh, logsih, logsiih
 
 
-def getRGB(planes, minval=None, maxval=None, scale='lin'):
+def getRGB(planes, minval=None, maxval=None, scale='lin', ddyn=1):
     
     """ Creates an RGB image from three input planes (bgr) with scaling
     
@@ -260,7 +264,7 @@ def getRGB(planes, minval=None, maxval=None, scale='lin'):
         # Calculate dynamic range
         if minval == None and maxval == None:
             planemed = scipy.ndimage.filters.median_filter(planes[i], 30)
-            dyrange = np.nanmax(planemed)
+            dyrange = np.nanmax(planemed)/ddyn
             minsub = 0
         else:
             dyrange = maxval[i] - minval[i]
@@ -514,7 +518,7 @@ def getEW(s3d, line, dv=120, plotC=False, plotF=False,
 
     logger.info( 'Calculating map with equivalence width of line %s' %line)
     # Get line fluxes
-    f1, fe1 = s3d.extractPlane(line=line, sC=1, meth='sum')
+    f1, fe1 = s3d.extractPlane(line=line, sC=1, meth='sum', dv=dv)
     cont = s3d.extractCont(line=line)
 
     # Calculate emission line rest-frame equivalent width
@@ -593,6 +597,8 @@ def getBPT(s3d, snf=5, snb=5, sC=0, xlim1=-1.65, xlim2=0.3, ylim1=-1, ylim2=1,
     hb, hbe = extract2d(s3d, line='hb', sC=sC)
     sn1, sn2, sn3, sn4 = nii/niie, ha/hae, oiii/oiiie, hb/hbe
     sel = (sn1 > snf) * (sn2 > snb) * (sn3 > snb) * (sn4 > snf)
+    sel2 = (sn1 > 2) * (sn2 > 2) * (sn3 > 2) * (sn4 > 2)
+    sel3 = (sn1 > 5) * (sn2 > 5) * (sn3 > 5) * (sn4 > 5)
 
     niiha = np.log10(nii[sel].flatten()/ha[sel].flatten())
     oiiihb = np.log10(oiii[sel].flatten()/hb[sel].flatten())
@@ -611,13 +617,13 @@ def getBPT(s3d, snf=5, snb=5, sC=0, xlim1=-1.65, xlim2=0.3, ylim1=-1, ylim2=1,
     plt.imshow(np.flipud(hh.T), alpha = 0.7, aspect=0.7,
            extent=np.array(xyrange).flatten(), interpolation='none')
     
-    ax1.plot(np.log10(np.nansum(nii[sel])/np.nansum(ha[sel])),
-             np.log10(np.nansum(oiii[sel])/np.nansum(hb[sel])), 'o', ms = 10,
+    ax1.plot(np.log10(np.nansum(nii[sel3])/np.nansum(ha[sel3])),
+             np.log10(np.nansum(oiii[sel3])/np.nansum(hb[sel3])), 'o', ms = 10,
              color = 'navy', mec = 'grey', mew=2,
              label=r'$\mathrm{HII\,region\,average}$')
 
-    ax1.plot(np.log10(np.nansum(nii)/np.nansum(ha)),
-             np.log10(np.nansum(oiii)/np.nansum(hb)), 'o', ms = 10,
+    ax1.plot(np.log10(np.nansum(nii[sel2])/np.nansum(ha[sel2])),
+             np.log10(np.nansum(oiii[sel2])/np.nansum(hb[sel2])), 'o', ms = 10,
              color = 'firebrick', mec = 'white', mew=2,
              label=r'$\mathrm{Galaxy\,average}$')
 
@@ -626,8 +632,14 @@ def getBPT(s3d, snf=5, snb=5, sC=0, xlim1=-1.65, xlim2=0.3, ylim1=-1, ylim2=1,
             posx, posy = s3d.skytopix(ra, dec)
         except TypeError:
             posx, posy = s3d.sexatopix(ra, dec)  
-        ax1.plot(np.log10(nii[posy, posx]/ha[posy, posx]),
-             np.log10(oiii[posy, posx]/hb[posy, posx]), 's', ms = 10,
+            
+        niigrb = np.nanmedian(nii[posy-1:posy+1, posx-1:posx+1])
+        hagrb = np.nanmedian(ha[posy-1:posy+1, posx-1:posx+1])
+        hbgrb = np.nanmedian(hb[posy-1:posy+1, posx-1:posx+1])
+        oiiigrb = np.nanmedian(oiii[posy-1:posy+1, posx-1:posx+1])
+       
+        ax1.plot(np.log10(niigrb/hagrb),
+             np.log10(oiiigrb/hbgrb), 's', ms = 10,
              color = 'black', mec = 'white', mew=2, label=r'$\mathrm{SN\,site}$')
 
     bar = plt.colorbar(shrink = 0.9, pad = 0.01)

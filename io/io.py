@@ -22,7 +22,7 @@ from matplotlib.patheffects import withStroke
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import LogFormatterMathtext
 from ..analysis.functions import blur_image
-
+import matplotlib as mpl
 
 def fitsin(fits):
     """Read in a fits file and retun the data
@@ -41,8 +41,45 @@ def fitsin(fits):
     data = pyfits.getdata(fits)
     return data
 
+def asciiin(s3d, ascii):
+    """Read in an ascii file and retun the data
+
+    Parameters
+    ----------
+    fits : str
+        ascii file name to read
+
+    Returns
+    ----------
+    wave : np.array
+        wave arry of input ascii file
+    spec : np.array
+        data arry of input ascii file
+    error : np.array
+        error arry of input ascii file
+    """
 
 
+    f = open(ascii, 'r')
+    lines = [g for g in f.readlines() if not g.startswith('#')]
+    f.close()
+    wave, spec, err = np.array([]), np.array([]), np.array([])
+    for line in lines:
+        line = line.split()
+        if len(line) == 3:
+            error = True
+            wave = np.append(wave, float(line[0]))
+            spec = np.append(spec, float(line[1]))
+            err = np.append(err, float(line[2]))
+        if len(line) == 2:
+            error = False
+            wave = np.append(wave, float(line[0]))
+            spec = np.append(spec, float(line[1]))
+    if error:
+        return wave, spec, err
+    else:
+        return wave, spec
+        
 def fitsout(s3d, plane, smoothx=0, smoothy=0, name='', unit=''):
     """ Write the given plane into a fits file. Uses header of the original
     data. Returns nothing, but write a fits file.
@@ -293,8 +330,8 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
            label=None, vmin=None, vmax=None, 
            ra=None, dec=None, source='',
            ra2=None, dec2=None, source2='',
-           median=None, axis='WCS', size = (11.5,9.5),
-           psf=None, cmap='viridis', 
+           median=None, axis='WCS', size = (11.5,9.15),
+           psf=None, cmap='viridis',
            twoc=True, norm='lin', fs=24):
                
     """ Simple 2d-image plot function 
@@ -336,14 +373,14 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
     """
     
     if xmax == -1:
-        xmax = s3d.lenx
+        xmax = plane.shape[0]
     if ymax == -1:
-        ymax = s3d.leny
+        ymax = plane.shape[1]
     
     plane = plane[ymin:ymax, xmin:xmax]
     
     if twoc == True:
-        myeffect = withStroke(foreground="w", linewidth=2)
+        myeffect = withStroke(foreground="w", linewidth=4)
         kwargs = dict(path_effects=[myeffect])
     else:
         kwargs = {}
@@ -376,14 +413,13 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
 
             
     if plane.ndim == 2:
-        fig = plt.figure(figsize = (11,9.5))
+        fig = plt.figure(figsize = size)
         if fs > 20 and axis == 'WCS':
             fig.subplots_adjust(bottom=0.22, top=0.99, left=0.12, right=0.96)
         elif axis == 'WCS':
             fig.subplots_adjust(bottom=0.20, top=0.99, left=0.08, right=0.96)
         else:
-            fig = plt.figure(figsize = size)
-            fig.subplots_adjust(bottom=0.005, top=0.995, left=0.005, right=0.95)
+            fig.subplots_adjust(bottom=0.005, top=0.995, left=0.005, right=0.94)
     else:
         fig = plt.figure(figsize = (9,9))
         fig.subplots_adjust(bottom=0.18, top=0.99, left=0.19, right=0.99)
@@ -400,29 +436,47 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
     elif norm == 'log':
         plt.imshow(plane, vmin=vmin, vmax=vmax, #extent=[],
                cmap=cmap, norm=LogNorm(), interpolation="nearest")#, aspect="auto")#, cmap='Greys')
-    
+ 
+    if plane.ndim == 2:
+        bar = plt.colorbar(shrink = 0.9, pad = 0.01)
+        if not label == None:
+            bar.set_label(label, size = fs+15, family='serif')
+            bar.ax.tick_params(labelsize=max(24,fs-4))
+        if norm == 'log':
+            bar.formatter  = plt.LogFormatterMathtext()
+        labels = [item.get_text() for item in bar.ax.get_yticklabels()]
+        newlab = []
+        for label in labels:
+            if norm == 'log':
+                newl = label.replace('mathdefault', 'mathrm', 1)
+            else:
+                newl = r'$%s$' %label
+            newlab.append(newl)
+        bar.ax.set_yticklabels(newlab)
+#            bar.update_ticks()
+   
     if psf != None:
-        psfrad = psf/2.3538/0.2
-        psfsize = plt.Circle((plane.shape[0]/9., plane.shape[1]/9.), 
+        psfrad = psf/2.3538/s3d.pixsky
+        psfsize = plt.Circle((8*plane.shape[0]/9., plane.shape[1]/9.), 
                              psfrad, color='black',
                              alpha=1, **kwargs)
         ax.add_patch(psfsize)
-        plt.text(plane.shape[0]/9., plane.shape[0]/6.5, r'PSF',
+        plt.text(8*plane.shape[0]/9., plane.shape[0]/6.5, r'PSF',
            fontsize = fs, ha = 'center', va = 'center',  **kwargs)
 
     if ra != None and dec != None:
-        psfrad = errsize/2.3538/0.2
+        psfrad = errsize/2.3538/s3d.pixsky
         psfsize = plt.Circle((posx,posy), psfrad, lw=5, fill=False,
                              color='white', **kwargs)
         ax.add_patch(psfsize)
-        psfsize = plt.Circle((posx,posy), psfrad, lw=2.5, fill=False,
+        psfsize = plt.Circle((posx,posy), psfrad, lw=1.5, fill=False,
                              color='black', **kwargs)
         ax.add_patch(psfsize)
         plt.text(posx, posy*0.96, source,
            fontsize = fs, ha = 'center', va = 'top',  **kwargs)
 
     if ra2 != None and dec2 != None:
-        psfrad = 2*errsize/2.3538/0.2
+        psfrad = 2*errsize/2.3538/s3d.pixsky
         psfsize = plt.Circle((posx2,posy2), psfrad, lw=3, fill=False,
                              color='white', **kwargs)
         ax.add_patch(psfsize)
@@ -432,15 +486,6 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         plt.text(posx2, posy2*1.04, source2,
            fontsize = fs, ha = 'center', va = 'bottom',  **kwargs)
 
-    if plane.ndim == 2:
-        bar = plt.colorbar(shrink = 0.9, pad = 0.01)
-        if norm == 'log':
-            bar.formatter  = LogFormatterMathtext()
-        if not label == None:
-            bar.set_label(label, size = fs+4)
-            bar.ax.tick_params(labelsize=max(24,fs-10))
-        bar.update_ticks()
-    
     if axis == 'WCS':
 
         [xticks, xlabels], [yticks, ylabels] = _createaxis(s3d, plane)
@@ -470,9 +515,8 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         ax.yaxis.set_major_formatter(plt.NullFormatter())
         ax.xaxis.set_major_formatter(plt.NullFormatter())
 
-
     plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
-    plt.close(fig)   
+    plt.close(fig)
     
     
     
@@ -482,14 +526,18 @@ def _createaxis(s3d, plane):
     minra, mindec = s3d.pixtosexa(s3d.head['NAXIS1']-20, 20)
     maxra, maxdec = s3d.pixtosexa(20, s3d.head['NAXIS2']-20)
 
-    if plane.shape[0] > 500:
+    if plane.shape[0] > 1000:
+        dy = 20
+    elif plane.shape[0] > 500:
         dy = 30
     elif plane.shape[0] > 100: 
         dy = 10
     else:
         dy = 3
-    
-    if plane.shape[1] > 500:
+
+    if plane.shape[1] > 1000:
+        dx = 2   
+    elif plane.shape[1] > 500:
         dx = 3
     elif plane.shape[1] > 100:
         dx = 1
