@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-""" 
+"""
 IO operations for 3d fits files
     fitsin: read a given fits file into a plane
     fitsout: write a given plane into a fits file
@@ -20,9 +20,8 @@ import scipy as sp
 import matplotlib.pyplot as plt
 from matplotlib.patheffects import withStroke
 from matplotlib.colors import LogNorm
-from matplotlib.ticker import LogFormatterMathtext
 from ..analysis.functions import blur_image
-import matplotlib as mpl
+
 
 def fitsin(fits):
     """Read in a fits file and retun the data
@@ -41,6 +40,7 @@ def fitsin(fits):
     data = pyfits.getdata(fits)
     return data
 
+
 def asciiin(s3d, ascii):
     """Read in an ascii file and retun the data
 
@@ -58,7 +58,6 @@ def asciiin(s3d, ascii):
     error : np.array
         error arry of input ascii file
     """
-
 
     f = open(ascii, 'r')
     lines = [g for g in f.readlines() if not g.startswith('#')]
@@ -79,7 +78,8 @@ def asciiin(s3d, ascii):
         return wave, spec, err
     else:
         return wave, spec
-        
+
+
 def fitsout(s3d, plane, smoothx=0, smoothy=0, name='', unit=''):
     """ Write the given plane into a fits file. Uses header of the original
     data. Returns nothing, but write a fits file.
@@ -96,7 +96,7 @@ def fitsout(s3d, plane, smoothx=0, smoothy=0, name='', unit=''):
         Name to use in fits file name
     """
 
-    planeout = '%s_%s_%s.fits' %(s3d.inst, s3d.output, name)
+    planeout = '%s_%s_%s.fits' % (s3d.inst, s3d.output, name)
 
     if smoothx > 0:
         plane = blur_image(plane, smoothx, smoothy)
@@ -114,14 +114,14 @@ def fitsout(s3d, plane, smoothx=0, smoothy=0, name='', unit=''):
     if unit != '':
         headimg['BUNIT'] = unit
         headimgprim['BUNIT'] = unit
-    hdu.append(pyfits.PrimaryHDU(header = headimgprim))
-    hdu.append(pyfits.ImageHDU(data = plane, header = headimg))
+    hdu.append(pyfits.PrimaryHDU(header=headimgprim))
+    hdu.append(pyfits.ImageHDU(data=plane, header=headimg))
     hdu.writeto(planeout)
-    
-    
+
+
 def asciiout(s3d, wl, spec, err=None, resample=0, name='', div=3,
-             frame = 'obs', fmt='spec'):
-    """ Write the given spectrum into a ascii file. 
+             frame='obs', fmt='spec'):
+    """ Write the given spectrum into a ascii file.
     Returns name of ascii file, writes ascii file.
 
     Parameters
@@ -137,18 +137,18 @@ def asciiout(s3d, wl, spec, err=None, resample=0, name='', div=3,
     name : str
         Name to use in fits file name
     """
-    asciiout = '%s_%s_%s.%s' %(s3d.inst, s3d.output, name, fmt)
-    if s3d.z != None and frame == 'rest':
-#        logger.info('Moving to restframe')
+    asciiout = '%s_%s_%s.%s' % (s3d.inst, s3d.output, name, fmt)
+    if s3d.z is not None and frame == 'rest':
+        # logger.info('Moving to restframe')
         wls = wl / (1+s3d.z)
         divspec = spec * (1+s3d.z) / 10**div
-        if err != None:
+        if err is not None:
             diverr = err * (1+s3d.z) / 10**div
     else:
         divspec = spec / 10**div
-        if err != None:
+        if err is not None:
             diverr = err / 10**div
-            
+
     if resample not in [False, 0, 'False']:
         outwls = np.arange(int(wls[0]), int(wls[-1]), resample)
         s = sp.interpolate.InterpolatedUnivariateSpline(wls, divspec)
@@ -161,7 +161,7 @@ def asciiout(s3d, wl, spec, err=None, resample=0, name='', div=3,
         outwls, outspec, outerr = \
             np.copy(wl), np.copy(spec) / 10**div, np.copy(err) / 10**div
         fmt = '%.3f %.3e %.3e \n'
-        
+
     f = open(asciiout, 'w')
     if fmt == 'spec':
         f.write('#Fluxes in [10**-%s erg/cm**2/s/AA] \n' %(-20+div))
@@ -173,27 +173,27 @@ def asciiout(s3d, wl, spec, err=None, resample=0, name='', div=3,
         if err != None:
             f.write(fmt %(outwls[i], outspec[i], outerr[i]))
         if err == None:
-            f.write('%.2f %.3f\n' %(outwls[i], outspec[i]))            
+            f.write('%.2f %.3f\n' %(outwls[i], outspec[i]))
     f.close()
 #        logger.info('Writing ascii file took %.2f s' %(time.time() - t1))
-    return asciiout    
-    
-    
+    return asciiout
+
+
 
 def cubeout(s3d, cube, name='', err=[]):
     """ Writes a 3d cube in a fits file. Maintains original header. Removes
     file if already existing
-    
+
     Parameters:
     ----------
-    cube : np.array 
+    cube : np.array
         3-d array which to write into a fits file
     name : str
-        Name to use in fits file name    
+        Name to use in fits file name
     err : np.array
         Write variance into second extinsion
     """
-    
+
     cubeout = '%s_%s_cube.fits' %(s3d.output, name)
     if os.path.isfile(cubeout):
         os.remove(cubeout)
@@ -203,18 +203,18 @@ def cubeout(s3d, cube, name='', err=[]):
     if err!=[]:
         hdu.append(pyfits.ImageHDU(data = s3d.erro**2, header = s3d.headerro))
     hdu.writeto(cubeout)
- 
- 
- 
-def distout(s3d, plane, minx, maxx, dx, 
+
+
+
+def distout(s3d, plane, minx, maxx, dx,
             plane2=None, plane3=None,
             sel=None, sel2=None, sel3=None,
-            logx=True, 
+            logx=True,
             name='', label='', ra=None, dec=None, cumulative=True,
             norm=True):
     """Plot the distribution of spaxel parameters in plane. Highlight the
     parameter at ra, dec if given.
-    
+
     Parameters:
     ----------
     plane : np.array
@@ -232,13 +232,13 @@ def distout(s3d, plane, minx, maxx, dx,
     cumulative : boolean
         Cumulative histogram
     norm : boolean
-        Normed y-axis        
+        Normed y-axis
     plane2 : np.array
         2d plane of second properties which to put in histogram
     sel2 : np.array
         2d plane with which to downselect spaxels in 2nd plane
     plane3 : np.array
-        2d plane of second properties which to put in histogram   
+        2d plane of second properties which to put in histogram
     sel3 : np.array
         2d plane with which to downselect spaxels in 3rd plane
     name : str
@@ -266,7 +266,7 @@ def distout(s3d, plane, minx, maxx, dx,
             x2 = plane2[posy, posx]
         if plane3 != None:
             x3 = plane3[posy, posx]
-            
+
 
     if sel == None:
         hist = plane.flatten()
@@ -274,11 +274,11 @@ def distout(s3d, plane, minx, maxx, dx,
         hist = hist[hist<maxx]
     else:
         hist = plane[sel]
-        
+
     if plane2 != None:
         hist2 = plane2[sel2]
         hist2 = hist2[~np.isnan(hist2)]
-        
+
     if plane3 != None:
         hist3 = plane3[sel3]
         hist3 = hist3[~np.isnan(hist3)]
@@ -304,43 +304,43 @@ def distout(s3d, plane, minx, maxx, dx,
             histtype='step', lw=2, color='navy')
     if plane3 != None:
         ax.hist(hist3, bins = bins, cumulative=cumulative, normed=norm,
-            histtype='step', lw=2, color='firebrick')    
-            
+            histtype='step', lw=2, color='firebrick')
+
     if x != None:
         ax.plot(x, y, 'o', mew=2, ms=11, color='black', mec='grey' )
         if plane2 != None:
             ax.plot(x2, y2, 'o', mew=2, ms=11, color='navy', mec='grey' )
         if plane3 != None:
             ax.plot(x3, y3, 'o', mew=2, ms=11, color='firebrick', mec='grey' )
-    
+
     ax.set_xlim(minx, maxx-dx)
     ax.set_ylim(0, 1.01)
     ax.set_ylabel(r'Fraction', size = 14)
     ax.set_xlabel(label, size = 14)
-    
+
     if logx == True:
         ax.set_xscale('log', subsx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-    
+
     plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
     plt.close(fig)
-     
+
 
 def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
            xmin=0, xmax=-1, ymin=0, ymax=-1, errsize=0.5,
-           label=None, vmin=None, vmax=None, 
+           label=None, vmin=None, vmax=None,
            ra=None, dec=None, source='',
            ra2=None, dec2=None, source2='',
            median=None, axis='WCS', size = (11.5,9.15),
-           psf=None, cmap='viridis',
+           psf=None, cmap='viridis', dy1=0.95, dy2=0.97,
            twoc=True, norm='lin', fs=24):
-               
-    """ Simple 2d-image plot function 
-    
+
+    """ Simple 2d-image plot function
+
     Parameters:
-    ----------    
-    
+    ----------
+
     plane : np.array
-        Either a 2d array for normal images, or a list of three 2d arrays for 
+        Either a 2d array for normal images, or a list of three 2d arrays for
         an RGB image
     smoothx, smoothy : integer
         Integer values of gaussian smoothing for the input plane
@@ -371,14 +371,14 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
     fs : integer
         Fontsize (default 24)
     """
-    
+
     if xmax == -1:
         xmax = plane.shape[0]
     if ymax == -1:
         ymax = plane.shape[1]
-    
+
     plane = plane[ymin:ymax, xmin:xmax]
-    
+
     if twoc == True:
         myeffect = withStroke(foreground="w", linewidth=4)
         kwargs = dict(path_effects=[myeffect])
@@ -390,7 +390,7 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         plane = blur_image(plane, smoothx, smoothy)
     if median != None:
         plane = sp.ndimage.filters.median_filter(plane, median, mode='constant')
-    
+
     if ra != None and dec != None:
         try:
             posx, posy = s3d.skytopix(ra, dec)
@@ -411,7 +411,7 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         if ymin !=0:
             posy2 -= ymin
 
-            
+
     if plane.ndim == 2:
         fig = plt.figure(figsize = size)
         if fs > 20 and axis == 'WCS':
@@ -425,18 +425,18 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         fig.subplots_adjust(bottom=0.18, top=0.99, left=0.19, right=0.99)
     ax = fig.add_subplot(1, 1, 1)
 
-    
+
     ax.set_ylim(5,  plane.shape[0]-5)
     ax.set_xlim(5,  plane.shape[1]-5)
-    
+
     if norm == 'lin':
         plt.imshow(plane, vmin=vmin, vmax=vmax, #extent=[],
                cmap=cmap, interpolation="nearest")#, aspect="auto")#, cmap='Greys')
-    
+
     elif norm == 'log':
         plt.imshow(plane, vmin=vmin, vmax=vmax, #extent=[],
                cmap=cmap, norm=LogNorm(), interpolation="nearest")#, aspect="auto")#, cmap='Greys')
- 
+
     if plane.ndim == 2:
         bar = plt.colorbar(shrink = 0.9, pad = 0.01)
         if not label == None:
@@ -454,10 +454,10 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
             newlab.append(newl)
         bar.ax.set_yticklabels(newlab)
 #            bar.update_ticks()
-   
+
     if psf != None:
         psfrad = psf/2.3538/s3d.pixsky
-        psfsize = plt.Circle((8*plane.shape[0]/9., plane.shape[1]/9.), 
+        psfsize = plt.Circle((8*plane.shape[0]/9., plane.shape[1]/9.),
                              psfrad, color='black',
                              alpha=1, **kwargs)
         ax.add_patch(psfsize)
@@ -472,54 +472,56 @@ def pdfout(s3d, plane, smoothx=0, smoothy=0, name='',
         psfsize = plt.Circle((posx,posy), psfrad, lw=1.5, fill=False,
                              color='black', **kwargs)
         ax.add_patch(psfsize)
-        plt.text(posx, posy*0.96, source,
+        plt.text(posx, posy*dy1, source,
            fontsize = fs, ha = 'center', va = 'top',  **kwargs)
 
     if ra2 != None and dec2 != None:
-        psfrad = 2*errsize/2.3538/s3d.pixsky
-        psfsize = plt.Circle((posx2,posy2), psfrad, lw=3, fill=False,
-                             color='white', **kwargs)
-        ax.add_patch(psfsize)
-        psfsize = plt.Circle((posx2,posy2), psfrad, lw=1.5, fill=False,
-                             color='black', **kwargs)
-        ax.add_patch(psfsize)
-        plt.text(posx2, posy2*1.04, source2,
-           fontsize = fs, ha = 'center', va = 'bottom',  **kwargs)
+#        psfrad = 0.2*errsize/2.3538/s3d.pixsky
+#        psfsize = plt.Circle((posx2,posy2), psfrad, lw=5, fill=False,
+#                             color='white', **kwargs)
+#        ax.add_patch(psfsize)
+#        psfsize = plt.Circle((posx2,posy2), psfrad, lw=1.5, fill=False,
+#                             color='black', **kwargs)
+#        ax.add_patch(psfsize)
+        print posx2, posy2
+        ax.plot(posx2+1, posy2+1, 'o', ms=9, mec='black', c='black')
+        plt.text(posx2, posy2*dy2, source2,
+           fontsize = fs, ha = 'center', va = 'top',  **kwargs)
 
     if axis == 'WCS':
 
         [xticks, xlabels], [yticks, ylabels] = _createaxis(s3d, plane)
-    
+
         sel = (xmin+5 < xticks) * (xmax-5 > xticks)
         xticks = xticks[sel]
         xlabels = xlabels[sel]
         xticks -= xmin
-    
+
         sel = (ymin+5 < yticks) * (ymax-5 > yticks)
         yticks = yticks[sel]
         ylabels = ylabels[sel]
         yticks -= ymin
-    
-    
+
+
         plt.xticks(rotation=50)
         plt.yticks(rotation=50)
-    
+
         ax.set_xticks(xticks)
         ax.set_xticklabels(xlabels, size=fs)
         ax.set_yticks(yticks)
         ax.set_yticklabels(ylabels, size=fs)
         ax.set_xlabel(r'Right Ascension (J2000)', size = fs)
         ax.set_ylabel(r'Declination (J2000)', size = fs)
-        
+
     else:
         ax.yaxis.set_major_formatter(plt.NullFormatter())
         ax.xaxis.set_major_formatter(plt.NullFormatter())
 
     plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
     plt.close(fig)
-    
-    
-    
+
+
+
 def _createaxis(s3d, plane):
     """ WCS axis helper method """
 
@@ -530,18 +532,18 @@ def _createaxis(s3d, plane):
         dy = 20
     elif plane.shape[0] > 500:
         dy = 30
-    elif plane.shape[0] > 100: 
+    elif plane.shape[0] > 100:
         dy = 10
     else:
         dy = 3
 
     if plane.shape[1] > 1000:
-        dx = 2   
+        dx = 2
     elif plane.shape[1] > 500:
         dx = 3
     elif plane.shape[1] > 100:
         dx = 1
-    else: 
+    else:
         dx = 0.3
 
     minrah = int(minra.split(':')[0])
@@ -582,14 +584,14 @@ def _createaxis(s3d, plane):
             axlab.append(r'$%s^{\rm{h}}%s^{\rm{m}}%s^{\rm{s}}$'\
                     %tuple(axra.split(':')) )
         minras += dx
-    
+
     if s3d.headprim['DEC'] > 0:
         maxdec = mindec
         dy = -dy
         maxdem = int(maxdec.split(':')[1])+1
     else:
         maxdem = int(maxdec.split(':')[1])-1
-        
+
     maxdeh = int(maxdec.split(':')[0])
     maxdes = np.round(float(maxdec.split(':')[-1]) + 10, -1)
 
@@ -621,10 +623,10 @@ def _createaxis(s3d, plane):
         maxdes += dy
 
     return [np.array(axpx), np.array(axlab)], [np.array(aypx), np.array(aylab)]
- 
 
 
-   
+
+
 def plotspec(s3d, x, y, err=None, name='', div=1E3, lines=[]):
     """ Simple spectrum bar plot convinience method """
 
@@ -636,7 +638,7 @@ def plotspec(s3d, x, y, err=None, name='', div=1E3, lines=[]):
     ax.plot(x, y/div, color = 'black', alpha = 1.0, # rasterized = raster,
                 drawstyle = 'steps-mid',  lw = 1.8, zorder = 1)
     colors = ['firebrick', 'navy']
-    if lines != []: 
+    if lines != []:
         for color, line in zip(colors, lines):
             if len(lines) == 2:
                 ax.plot(line[0], line[1], '-', color=color, lw=1.2)
@@ -653,10 +655,10 @@ def plotspec(s3d, x, y, err=None, name='', div=1E3, lines=[]):
 
     plt.savefig('%s_%s_%sspec.pdf' %(s3d.inst, s3d.target, name))
     plt.close(fig)
-   
-   
-   
-   
+
+
+
+
 def plotxy(s3d, x, y, xerr=None, yerr=None, ylabel=None, xlabel=None,
              name=''):
     """ Simple error bar plot convinience method """
@@ -675,4 +677,3 @@ def plotxy(s3d, x, y, xerr=None, yerr=None, ylabel=None, xlabel=None,
     ax.set_xlabel(ylabel)
     plt.savefig('%s_%s_%s.pdf' %(s3d.inst, s3d.target, name))
     plt.close(fig)
-    

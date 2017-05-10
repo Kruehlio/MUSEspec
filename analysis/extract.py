@@ -15,7 +15,7 @@ import numpy as np
 import logging
 import time
 
-from ..io.io import pdfout, plotspec
+from ..MUSEio.museio import pdfout, plotspec
 from ..utils.fitter import onedgaussfit
 
 
@@ -45,27 +45,26 @@ RESTWL = {'oi': 6302.046,
 
 
 CWLS = {'ha' : [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
-    'hb' : [RESTWL['hb'], RESTWL['hb'], RESTWL['hb']],
-    'hg' : [RESTWL['hg'], RESTWL['hg'], RESTWL['hg']],
-    'hd' : [RESTWL['hd'], RESTWL['hd'], RESTWL['hd']],
-    'oiiia' : [RESTWL['oiiia'], RESTWL['oiiia'], RESTWL['oiiia']],                   
-    'oiiib' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
-    'oi' : [RESTWL['oi'], RESTWL['oi'], RESTWL['oi']],                   
-    'oiii' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
-    'nii' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
-    'niia' : [RESTWL['niia'], RESTWL['niia'], RESTWL['niib']],                   
-    'niib' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
-    'nii5755' : [RESTWL['nii5755'], RESTWL['nii5755'], RESTWL['nii5755']],                   
-    'siia' : [RESTWL['siia'],RESTWL['siia'], RESTWL['siib']],                   
-    'siib' : [RESTWL['siib'], RESTWL['siia'], RESTWL['siib']],                   
-    'sii' : [RESTWL['sii'], RESTWL['siia'], RESTWL['siib']],                   
-    'siii' : [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
-    'siii' : [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
-    'hei4922' : [RESTWL['hei4922'], RESTWL['hei4922'], RESTWL['hei4922']],
-    'oii7320' : [RESTWL['oii7320'], RESTWL['oii7320'], RESTWL['oii7320']],
-    'oii7331' : [RESTWL['oii7331'], RESTWL['oii7331'], RESTWL['oii7331']],
-    'ariii7135' : [RESTWL['ariii7135'], RESTWL['ariii7135'], RESTWL['ariii7135']],
-    'siii6312' : [RESTWL['siii6312'], RESTWL['siii6312'], 
+        'hb' : [RESTWL['hb'], RESTWL['hb'], RESTWL['hb']],
+        'hg' : [RESTWL['hg'], RESTWL['hg'], RESTWL['hg']],
+        'hd' : [RESTWL['hd'], RESTWL['hd'], RESTWL['hd']],
+        'oiiia' : [RESTWL['oiiia'], RESTWL['oiiia'], RESTWL['oiiia']],                   
+        'oiiib' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
+        'oi' : [RESTWL['oi'], RESTWL['oi'], RESTWL['oi']],                   
+        'oiii' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
+        'nii' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
+        'niia' : [RESTWL['niia'], RESTWL['niia'], RESTWL['niib']],                   
+        'niib' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
+        'nii5755' : [RESTWL['nii5755'], RESTWL['nii5755'], RESTWL['nii5755']],                   
+        'siia' : [RESTWL['siia'],RESTWL['siia'], RESTWL['siib']],                   
+        'siib' : [RESTWL['siib'], RESTWL['siia'], RESTWL['siib']],                   
+        'sii' : [RESTWL['sii'], RESTWL['siia'], RESTWL['siib']],                   
+        'siii' : [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
+        'hei4922' : [RESTWL['hei4922'], RESTWL['hei4922'], RESTWL['hei4922']],
+        'oii7320' : [RESTWL['oii7320'], RESTWL['oii7320'], RESTWL['oii7320']],
+        'oii7331' : [RESTWL['oii7331'], RESTWL['oii7331'], RESTWL['oii7331']],
+        'ariii7135' : [RESTWL['ariii7135'], RESTWL['ariii7135'], RESTWL['ariii7135']],
+        'siii6312' : [RESTWL['siii6312'], RESTWL['siii6312'], 
                   RESTWL['siii6312']]}
 
 

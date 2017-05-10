@@ -2,54 +2,53 @@
 
 """ Spectrum class for 3d-spectra. Particularly MUSE."""
 
-import matplotlib
-matplotlib.use('Agg')
-
-import pyfits
-import numpy as np
-import matplotlib.pyplot as plt
 import warnings
-warnings.filterwarnings("ignore")
-
 import multiprocessing
 import logging
 import sys
-
-from utils.astro import (LDMP, Avlaws, airtovac, ergJy,
-                       abflux, getebv)
-
-from analysis.functions import (deg2sexa, sexa2deg, ccmred)
-from analysis.maps import (getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV,
-                   getVel, getSeg, getRGB, getTemp, getOHT, getQ)
-from analysis.extract import (extract1d, extract2d, extract3d, subtractCont,
-                      getGalcen, cutCube, extractCont, RESTWL)
-from analysis.analysis import (metGrad, voronoi_bin, anaSpec)
-              
-from utils.starlight import runStar, subStars, subAllStars
-from io.io import pdfout, fitsout, asciiout, cubeout, plotspec, distout, asciiin
-
-
-
-
-logfmt = '%(levelname)s [%(asctime)s]: %(message)s'
-datefmt= '%Y-%m-%d %H:%M:%S'
-formatter = logging.Formatter(fmt=logfmt,datefmt=datefmt)
-logger = logging.getLogger('__main__')
-logging.root.setLevel(logging.DEBUG)
-ch = logging.StreamHandler() #console handler
-ch.setFormatter(formatter)
-logger.handlers = []
-logger.addHandler(ch)
-
 import signal
+import pyfits
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
+
+from MUSEspec.utils.astro import (
+    LDMP, Avlaws, airtovac, ergJy, abflux, getebv)
+from MUSEspec.analysis.functions import (deg2sexa, sexa2deg, ccmred)
+from MUSEspec.analysis.maps import (
+    getDens, getSFR, getOH, getIon, getEW, getBPT, getEBV, getVel,
+    getSeg, getRGB, getTemp, getOHT, getQ)
+from MUSEspec.analysis.extract import (
+    extract1d, extract2d, extract3d, subtractCont, getGalcen,
+    cutCube, extractCont, RESTWL)
+from MUSEspec.analysis.analysis import (metGrad, voronoi_bin, anaSpec)
+
+from MUSEspec.utils.starlight import runStar, subStars, subAllStars
+from MUSEspec.MUSEio.museio import (
+    pdfout, fitsout, asciiout, cubeout, plotspec, distout, asciiin)
+
+warnings.filterwarnings("ignore")
+
+LOG_FMT = '%(levelname)s [%(asctime)s]: %(message)s'
+DATE_FMT = '%Y-%m-%d %H:%M:%S'
+FMT = logging.Formatter(fmt=LOG_FMT, datefmt=DATE_FMT)
+LOGGER = logging.getLogger('__main__')
+logging.root.setLevel(logging.DEBUG)
+CH = logging.StreamHandler()  # console handler
+CH.setFormatter(FMT)
+LOGGER.handlers = []
+LOGGER.addHandler(CH)
+
+
 def signal_handler(signal, frame):
+    """ Killing from the command line """
     sys.exit("CTRL+C detected, stopping execution")
 signal.signal(signal.SIGINT, signal_handler)
 
-c = 2.99792458E5
 
-
-class Spectrum3d:
+class Spectrum3d(object):
     """ Fits cube class for data exploration, analysis, modelling.
 
    Arguments:
@@ -60,9 +59,9 @@ class Spectrum3d:
     Methods:
         setFiles: Sets fits files
         setRedshift: Given an redshift z, sets cosmological parameters
-        ebvGal: Uses fits header keywords RA, DEC to get Galactic Forground EB-V
+        ebvGal: Uses fits header keywords RA,DEC to get Galactic Forground EB-V
         ebvCor: Corrects a given line for the EB-V map
-        checkPhot: Checks the flux calibration of the cube through synthetic phtometry
+        checkPhot: Checks the flux calibration through synthetic phtometry
         subtractCont: Subtracts continuum of plane
         getCont: Measures continuum of plane
         getSFR: Calculates the SFR density map based on Halpha
@@ -89,7 +88,6 @@ class Spectrum3d:
 
     """
 
-
     def __init__(self, filen=None, inst='MUSE', target='', verbose=0):
         self.inst = inst
         self.z = None
@@ -103,17 +101,17 @@ class Spectrum3d:
         self.objmask = None
         self.verbose = verbose
         self.scale = []
-        if filen != None:
+        self.LDMP = 0
+        self.AngD = 0
+        if filen is not None:
             self.setFiles(filen)
-        self.ncores =  multiprocessing.cpu_count()/2
-        logger.info('Using %i cores for analysis' %self.ncores)
-
-
+        self.ncores = multiprocessing.cpu_count()/2
+        LOGGER.info('Using %i cores for analysis', self.ncores)
 
     def setFiles(self, filen, fluxmult=1, dAxis=3, mult=1, data=True, ext=1):
         """ Uses pyfits to set the header, data and error as instance attributes.
-        The fits file should have at least two extension, where the first containst
-        the data, the second the variance. Returns nothing.
+        The fits file should have at least two extension, where the first
+        contains the data, the second the variance. Returns nothing.
 
         Parameters
         ----------
@@ -125,39 +123,40 @@ class Spectrum3d:
         self.headprim = pyfits.getheader(filen, 0)
         # Get header of data extension
         self.head = pyfits.getheader(filen, ext)
-        if data == True:
+        if data is True:
             # Read in data
-            self.data = pyfits.getdata(filen, ext)
+            self.data = pyfits.getdata(filen, ext) * fluxmult
             self.starcube = np.zeros(self.data.shape, dtype='>f4')
         try:
             self.headerro = pyfits.getheader(filen, 2)
             # Read in variance and turn into stdev
-            if data == True:
-                self.erro = pyfits.getdata(filen, 2)**0.5
+            if data is True:
+                self.erro = pyfits.getdata(filen, 2)**0.5 * fluxmult
         except IndexError:
             pass
 
-        wlkey, wlstart = 'NAXIS%i'%dAxis, 'CRVAL%i'%dAxis
-        wlinc, wlpixst = 'CD%i_%i'%(dAxis, dAxis), 'CRPIX%i'%dAxis
+        wlkey, wlstart = 'NAXIS%i' % dAxis, 'CRVAL%i' % dAxis
+        wlinc, wlpixst = 'CD%i_%i' % (dAxis, dAxis), 'CRPIX%i' % dAxis
         pix = np.arange(self.head[wlkey]) + self.head[wlpixst]
         self.pix = pix
-            # Create wave array from fits info
+        # Create wave array from fits info
         self.wave = airtovac(self.head[wlstart] + (pix - 1) * self.head[wlinc])
+        self.wave *= mult
 
-        self.pixsky = (self.head['CD1_1']**2 + self.head['CD1_2']**2) ** 0.5 * 3600
+        self.pixsky = \
+            (self.head['CD1_1']**2 + self.head['CD1_2']**2) ** 0.5 * 3600
         self.lenx = self.head['NAXIS1']
         self.leny = self.head['NAXIS2']
-        self.wlinc =  self.head[wlinc]
+        self.wlinc = self.head[wlinc] * mult
 
         if self.target == '':
             self.target = self.headprim['OBJECT']
         self.fluxunit = self.head['BUNIT']
         self.output = self.headprim['OBJECT']
         self.base, self.ext = filen.split('.fits')[0], '.fits'
-        logger.info( 'Fits cube loaded %s' %(filen))
-        logger.info( 'Wavelength range %.1f - %.1f (vacuum)' %(self.wave[0], self.wave[-1]))
-
-
+        LOGGER.info('Fits cube loaded %s', filen)
+        LOGGER.info('Wavelength range %.1f - %.1f (vacuum)',
+                    self.wave[0], self.wave[-1])
 
     def setRedshift(self, z):
         """ Setting luminosity distance and angular seperation here, provided
@@ -170,15 +169,14 @@ class Spectrum3d:
         """
 
         LD, angsep = LDMP(z, v=2)
-        logger.info('Luminosity distance at z=%.4f: %.2f MPc' %(z, LD))
-        logger.info('Luminosity distance at z=%.4f: %.2e cm' %(z, LD * 3.0857E24))
+        LOGGER.info('Luminosity distance at z=%.4f: %.2f MPc', z, LD)
+        LOGGER.info('Luminosity distance at z=%.4f: %.2e cm',
+                    z, LD * 3.0857E24)
         self.z = z
         self.LDMP = LD * 3.0857E24
         self.AngD = angsep
 
-
-
-    def ebvGal(self, ebv = '', rv=3.08):
+    def ebvGal(self, ebv='', rv=3.08):
         """ If user does not provide ebv, it uses the header information of the
         pointing to obtain the Galactic
         foreground reddening from IRSA. These are by default the Schlafly and
@@ -197,14 +195,13 @@ class Spectrum3d:
             ra, dec = self.headprim['RA'], self.headprim['DEC']
             ebv, std, ref, av = getebv(ra, dec, rv)
         ebvcorr = ccmred(self.wave, ebv, rv)
-        logger.info('Dereddening data using MW E_B-V = %.3f mag' %ebv)
-        self.data *= ebvcorr[:,np.newaxis, np.newaxis]
+        LOGGER.info('Dereddening data using MW E_B-V = %.3f mag', ebv)
+        self.data *= ebvcorr[:, np.newaxis, np.newaxis]
         try:
-            self.erro *= ebvcorr[:,np.newaxis, np.newaxis]
+            self.erro *= ebvcorr[:, np.newaxis, np.newaxis]
         except AttributeError:
             pass
         self.ebvGalCorr = ebv
-
 
     def ebvCor(self, line, rv=3.08, redlaw='mw', ebv=None):
         """ Uses a the instance attribut ebvmap, the previously calculated map
@@ -227,24 +224,24 @@ class Spectrum3d:
         """
         WL = RESTWL[line.lower()]/10.
 
-        if ebv != None:
+        if ebv is not None:
             ebvcalc = ebv
             ebvcorr = 1./np.exp(-1./1.086*ebvcalc * rv * Avlaws(WL, redlaw))
 
-        elif len(self.ebvmap) != None:
+        elif len(self.ebvmap) is not None:
             ebvcalc = self.ebvmap
             ebvcorr = 1./np.exp(-1./1.086*ebvcalc * rv * Avlaws(WL, redlaw))
             ebvcorr[np.isnan(ebvcorr)] = 1
             ebvcorr[ebvcorr < 1] = 1
-            
+
         else:
-            logger.error( 'Need an ebv or EBV-map / create via getEBV !!!')
+            LOGGER.error('Need an ebv or EBV-map / create via getEBV !!!')
             raise SystemExit
 
         return ebvcorr
 
-
-    def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7, magerr=1E-3):
+    def checkPhot(self, mag, band='r', ra=None, dec=None, radius=7,
+                  magerr=1E-3):
         """ Uses synthetic photometry at a given position in a given band at a
         given magnitude to check the flux calibration of the spectrum.
         Returns nothing.
@@ -265,18 +262,20 @@ class Spectrum3d:
             Radius in pixel around ra/dec for specturm extraction
         """
 
-        ABcorD = {'V':0.00, 'r':0.178, 'R':0.21, 'i':0.410, 'I':0.45, 'z':0.543}
+        ABcorD = {'V': 0.00, 'r': 0.178, 'R': 0.21, 'i': 0.410, 'I': 0.45,
+                  'z': 0.543}
         wls = {'r': [5500., 6832.], 'i': [7000., 7960.],
-           'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4],
-           'I': [7210., 8750.], 'F814': [6884.0, 9659.4], 'z': [8250.0, 9530.4]}
+               'V': [4920.9, 5980.2], 'R': [5698.9, 7344.4],
+               'I': [7210., 8750.], 'F814': [6884.0, 9659.4],
+               'z': [8250.0, 9530.4]}
 
         if band in 'VRI':
             mag = mag + ABcorD[band]
 
-        if ra != None and dec != None:
+        if ra is not None and dec is not None:
             if self.verbose > 0:
-                logger.info('Star at: %s, %s' %(ra, dec))
-            wl, spec, err = self.extrSpec(ra = ra, dec = dec, radius = radius)
+                LOGGER.info('Star at: %s, %s', ra, dec)
+            wl, spec, err = self.extrSpec(ra=ra, dec=dec, radius=radius)
         else:
             wl, spec, err = self.extrSpec(total=True)
 
@@ -285,12 +284,10 @@ class Spectrum3d:
         avgwl = np.nanmedian(wl[bandsel])
         fluxspec = ergJy(avgflux, avgwl)
         fluxref = abflux(mag)
-        
-        logger.info('Scale factor from spectrum to photometry for %s-band: %.3f' \
-          %(band, fluxref/fluxspec))
+
+        LOGGER.info('Scale from spectrum to photometry for %s-band: %.3f',
+                    band, fluxref/fluxspec)
         self.scale.append([avgwl, fluxref/fluxspec, magerr])
-
-
 
     def scaleCube(self, deg=1):
         """ Fits a polynomial of degree deg to the previously calculated scale-
@@ -305,41 +302,41 @@ class Spectrum3d:
         """
 
         if self.scale != []:
-            sfac = np.array(self.scale)[:,1]
-            wls = np.array(self.scale)[:,0]
-            err = np.array(self.scale)[:,2]
+            sfac = np.array(self.scale)[:, 1]
+            wls = np.array(self.scale)[:, 0]
+            err = np.array(self.scale)[:, 2]
 
             b = np.polyfit(x=wls, y=sfac, w=1./err, deg=deg)
-            logger.info('Scaling spectrum by ploynomial of degree '\
-                       + '%i to %i photometric points' %(deg, len(sfac)))
-            logger.info('Linear term %.e' %(b[0]))
+            LOGGER.info('Scaling spectrum by ploynomial of degree ' +
+                        '%i to %i photometric points', deg, len(sfac))
+            LOGGER.info('Linear term %.e', b[0])
             p = np.poly1d(b)
             corrf = p(self.wave)
-            self.data *= corrf[:,np.newaxis, np.newaxis]
-            self.erro *= corrf[:,np.newaxis, np.newaxis]
-            
-            fig1 = plt.figure(figsize = (6,4.2))
+            self.data *= corrf[:, np.newaxis, np.newaxis]
+            self.erro *= corrf[:, np.newaxis, np.newaxis]
+
+            fig1 = plt.figure(figsize=(6, 4.2))
             fig1.subplots_adjust(bottom=0.15, top=0.97, left=0.13, right=0.96)
             ax1 = fig1.add_subplot(1, 1, 1)
-            ax1.errorbar(wls, sfac, yerr=err, capsize=0, 
+            ax1.errorbar(wls, sfac, yerr=err, capsize=0,
                          ms=8, fmt='o', color='firebrick')
-            ax1.plot(self.wave, corrf, '-', color ='black')
+            ax1.plot(self.wave, corrf, '-', color='black')
             ax1.plot(self.wave, np.ones(len(corrf)), '--', color='black')
             ax1.set_xlabel(r'$\rm{Observed\,wavelength\,(\AA)}$', fontsize=18)
             ax1.set_ylabel(r'$\rm{Correction\, factor}$', fontsize=18)
             ax1.set_xlim(4650, 9300)
-            fig1.savefig('%s_%s_photcorr.pdf' %(self.inst, self.target))
+            fig1.savefig('%s_%s_photcorr.pdf' % (self.inst, self.target))
             plt.close(fig1)
 
         else:
-            logger.warning("No scaling performed")
-            logger.warning("Calculate scaling first with checkPhot")
+            LOGGER.warning("No scaling performed")
+            LOGGER.warning("Calculate scaling first with checkPhot")
 
-
-    def astro(self, starras=[], stardecs=[], ras=[], decs=[],
-                    starxs = [], starys = []):
+    def astro(self, starras=None, stardecs=None, ras=None, decs=None,
+              starxs=None, starys=None):
         """Correct MUSE astrometry: Starra and stardec are lists of the original
-        coordinates of a source in the MUSE cube with actual coordinates ra, dec.
+        coordinates of a source in the MUSE cube with actual coordinates ra,
+        dec.
         Returns nothing, but changes the header keywords CRVAL1 and CRVAL2 in
         the instance attribute head. Can only correct a translation mismath,
         no rotation, plate scale changes (should be low). Length of
@@ -357,16 +354,15 @@ class Spectrum3d:
             decs : list
                 List of declinations true positions of reference stars
         """
-        if starxs != [] and starys != []:
+        if starxs is not None and starys is not None:
             for starx, stary in zip(starxs, starys):
                 ra, dec = self.pixtosky(starx, stary)
                 starras.append(ra)
                 stardecs.append(dec)
-        print starras, stardecs
 
         if len(starras) != len(stardecs) or len(ras) != len(decs) or \
            len(starras) != len(ras):
-            logger.error('Input lists must be of equal length')
+            LOGGER.error('Input lists must be of equal length')
 
         dra, ddec = np.array([]), np.array([])
         for starra, stardec, ra, dec in zip(starras, stardecs, ras, decs):
@@ -375,23 +371,24 @@ class Spectrum3d:
             dra = np.append(dra, starra - ra)
             ddec = np.append(ddec, stardec - dec)
         dram, ddecm = np.average(dra), np.average(ddec)
-        logger.info('Changing astrometry by %.1f" %.1f"' %(dram*3600, ddecm*3600))
-        logger.info('RMS astrometry %.3f" %.3f"' %(np.std(dra)*3600, np.std(ddec)*3600))
+        LOGGER.info('Changing astrometry by %.1f" %.1f"',
+                    dram*3600, ddecm*3600)
+        LOGGER.info('RMS astrometry %.3f" %.3f"',
+                    np.std(dra)*3600, np.std(ddec)*3600)
         self.head['CRVAL1'] -= dram
         self.head['CRVAL2'] -= ddecm
-
 
     def getCont(self, pix1, pix2, dx=15):
         cont1 = np.nanmedian(self.data[pix1-dx:pix1], axis=0)
         cont2 = np.nanmedian(self.data[pix2:pix2+dx], axis=0)
-        return np.nanmean(np.array([cont1,cont2]), axis=0)
+        return np.nanmean(np.array([cont1, cont2]), axis=0)
 
     def getDens(self, **kwargs):
         return getDens(self, **kwargs)
-    
+
     def anaSpec(self, **kwargs):
         return anaSpec(self, **kwargs)
-        
+
     def metGrad(self, **kwargs):
         metGrad(self, **kwargs)
 
@@ -405,10 +402,10 @@ class Spectrum3d:
         return getOHT(self, toiii, toii, siii, **kwargs)
 
     def getQ(self, **kwargs):
-        return getQ(self)
+        return getQ(self, **kwargs)
 
     def getIon(self, meth='S', **kwargs):
-        return getIon(self)
+        return getIon(self, meth=meth, **kwargs)
 
     def getGalcen(self, **kwargs):
         return getGalcen(self, **kwargs)
@@ -426,7 +423,7 @@ class Spectrum3d:
         return getEBV(self, **kwargs)
 
     def BPT(self, **kwargs):
-        getBPT(self,  **kwargs)
+        getBPT(self, **kwargs)
 
     def velMap(self, **kwargs):
         return getVel(self, **kwargs)
@@ -438,7 +435,7 @@ class Spectrum3d:
         return getRGB(planes, **kwargs)
 
     def runStar(self, ascii, **kwargs):
-        return runStar(self, ascii,  **kwargs)
+        return runStar(self, ascii, **kwargs)
 
     def subStars(self, x, y, **kwargs):
         subStars(self, x, y, **kwargs)
@@ -454,7 +451,7 @@ class Spectrum3d:
 
     def fitsout(self, plane, **kwargs):
         fitsout(self, plane, **kwargs)
-        
+
     def cubeout(self, cube, **kwargs):
         cubeout(self, cube, **kwargs)
 
@@ -474,7 +471,7 @@ class Spectrum3d:
         return cutCube(self, **kwargs)
 
     def extractCube(self, **kwargs):
-        return  extract3d(self, **kwargs)
+        return extract3d(self, **kwargs)
 
     def extractPlane(self, **kwargs):
         return extract2d(self, **kwargs)
@@ -485,20 +482,17 @@ class Spectrum3d:
     def voronoi_bin(self, **kwargs):
         return voronoi_bin(**kwargs)
 
-
     def subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10):
-        return  subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=10)
+        return subtractCont(self, plane, pix1, pix2, cpix1, cpix2, dx=dx)
 
     def wltopix(self, wl):
         """ Converts wavelength as input into nearest integer pixel value """
         pix = ((wl - self.wave[0]) / self.wlinc)
         return max(0, int(round(pix)))
 
-
     def pixtowl(self, pix):
         """ Converts pixel into wavelength """
         return self.wave[pix-1]
-
 
     def pixtosky(self, x, y):
         """ Converts x, y positions into ra, dec in degree """
@@ -507,32 +501,29 @@ class Spectrum3d:
         dy = y - self.head['CRPIX2']
         decdeg = self.head['CRVAL2'] + self.head['CD2_2'] * dy
         radeg = self.head['CRVAL1'] + (self.head['CD1_1'] * dx) /\
-            np.cos( decdeg * np.pi/180.)
+            np.cos(decdeg * np.pi/180.)
         return radeg, decdeg
 
-
     def skytopix(self, ra, dec):
-        """ Converts ra, dec positions in degrees into x, y 
-        x, y in python format, starts with 0        
+        """ Converts ra, dec positions in degrees into x, y
+        x, y in python format, starts with 0
         """
-
-        y = (dec - self.head['CRVAL2']) / self.head['CD2_2'] + self.head['CRPIX2']
-        x = ((ra - self.head['CRVAL1']) / self.head['CD1_1']) *\
-            np.cos( dec * np.pi/180.) + self.head['CRPIX1']
+        y = (dec - self.head['CRVAL2']) / self.head['CD2_2'] + \
+            self.head['CRPIX2']
+        x = ((ra - self.head['CRVAL1']) / self.head['CD1_1']) * \
+            np.cos(dec * np.pi/180.) + self.head['CRPIX1']
         return (int(round(x-1)), int(round(y-1)))
-
 
     def pixtosexa(self, x, y):
         """ Converts x, y positions into ra, dec in sexagesimal """
 
-        ra, dec = self.pixtosky(x,y)
+        ra, dec = self.pixtosky(x, y)
         x, y = deg2sexa(ra, dec)
         return (x, y)
-
 
     def sexatopix(self, ra, dec):
         """ Converts ra, dec positions in sexagesimal into x, y """
 
         ra, dec = sexa2deg(ra, dec)
-        x, y = self.skytopix(ra,dec)
+        x, y = self.skytopix(ra, dec)
         return (int(round(x)), int(round(y)))
