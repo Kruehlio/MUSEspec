@@ -95,7 +95,8 @@ class MuseSpec(object):
         self.output = filen.split('.fits')[0]
         self.base, self.ext = filen.split('.fits')[0], '.fits'
         logger.info('Fits cube loaded %s', filen)
-        logger.info('Wavelength range %.1f - %.1f (vacuum)', self.wave[0], self.wave[-1])
+        logger.info('Wavelength range %.1f - %.1f (vacuum)',
+                    self.wave[0], self.wave[-1])
 
     def makemask(self, sky=None, continuum=True,
                  wl1=None, wl2=None, clobber=True, sigma=2.5,
@@ -307,9 +308,11 @@ class MuseSpec(object):
                 logger.info('Fpacking %s', self.output)
                 if clobber:
                     proc = subprocess.Popen(
-                        [fpack, '-q', '8', '-D', '-Y', '%s' % self.output],
+                        [fpack, '-q', '8', '-D', '-Y',
+                         '%s' % self.output],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 else:
+                    print 'Non-clobber'
                     proc = subprocess.Popen(
                         [fpack, '-q', '8', '-Y', '%s' % self.output],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)

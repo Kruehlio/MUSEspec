@@ -339,6 +339,7 @@ def getSFR(s3d, sC=1, EBV=1):
         logger.info('Correcting SFR for EBV')
         ebvcorr = s3d.ebvCor('ha')
         halum *= sp.ndimage.filters.median_filter(ebvcorr, 4)
+
     sfrmap = halum * 4.8E-42 / s3d.pixsky**2 / s3d.AngD
     snmap = haflux/haerr
     return sfrmap, snmap
@@ -681,13 +682,13 @@ def getBPT(s3d, snf=5, snb=5, sC=0, xlim1=-1.65, xlim2=0.3, ylim1=-1, ylim2=1,
                    {'color': 'black', 'fontsize': 15})
     ax1.set_ylabel(r'$\log({[\mathrm{OIII}]\lambda 5007/\mathrm{H}\beta})$',
                    {'color': 'black', 'fontsize': 15})
-
-    legend = ax1.legend(frameon=True,  markerscale=0.9,  numpoints=1,
-                        handletextpad=-0.2, loc=1, prop={'size': 14})
-    rect = legend.get_frame()
-    rect.set_facecolor("0.9")
-    rect.set_linewidth(0.0)
-    rect.set_alpha(0.5)
+    if pHII or pGal:
+        legend = ax1.legend(frameon=True,  markerscale=0.9,  numpoints=1,
+                            handletextpad=-0.2, loc=1, prop={'size': 14})
+        rect = legend.get_frame()
+        rect.set_facecolor("0.9")
+        rect.set_linewidth(0.0)
+        rect.set_alpha(0.5)
 
     plt.figtext(0.3, 0.22, r'$\mathrm{Star-forming}$', size=17,  color='black')
     plt.figtext(0.75, 0.5, r'$\mathrm{AGN}$', size=17, color='black')
