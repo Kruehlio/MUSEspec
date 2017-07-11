@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-""" 
+"""
 
 Extraction from a data cube along specific dimensions
     getGalcen : Extracts center of galaxy
@@ -8,7 +8,7 @@ Extraction from a data cube along specific dimensions
     extract2d : Extracts a single plane
     extract3d : Extracts a subcube between two wavelengths
     cutCube : Extracts a subcube between pixel ranges
-    
+
 """
 
 import numpy as np
@@ -31,48 +31,50 @@ logger.addHandler(ch)
 
 
 RESTWL = {'oi': 6302.046,
-      'oiia' : 3727.092, 'oii':3728.30, 'oiib' : 3729.875, 
-      'oii7320': 7322.010, 'oii7331':7332.3,
-      'oiiia' : 4960.30, 'oiiib': 5008.240, 'oiii':5008.240,
-      'hd': 4102.9351, 'hg' : 4341.69, 'hb' : 4862.68, 'ha' : 6564.61,
-      'siia':6718.29, 'siib': 6732.68, 'sii':6725.48,
-      'siii6312': 6313.8, 'siii':9071.1, 'siii9531':9533.2,
-      'sii4068': 4069.749,
-      'neiii' : 3869.81,
-      'nii5755': 5756.24, 'niia':6549.86, 'niib': 6585.27,
-      'ariii7135':7137.8, 'ariii7751':7753.2, 'hei4922':4923.305,
-      'heii5411':5413.030, 'hei5015':5017.0765, 'hei5876':5877.243, 'hei6680':6679.99}
+          'oiia': 3727.092, 'oii': 3728.30, 'oiib': 3729.875,
+          'oii7320': 7322.010, 'oii7331': 7332.3,
+          'oiiia': 4960.30, 'oiiib': 5008.240, 'oiii': 5008.240,
+          'hd': 4102.9351, 'hg': 4341.69, 'hb': 4862.68, 'ha': 6564.61,
+          'siia': 6718.29, 'siib': 6732.68, 'sii': 6725.48,
+          'siii6312': 6313.8, 'siii': 9071.1, 'siii9531': 9533.2,
+          'sii4068': 4069.749,
+          'neiii': 3869.81,
+          'nii5755': 5756.24, 'niia': 6549.86, 'niib': 6585.27,
+          'ariii7135': 7137.8, 'ariii7751': 7753.2, 'hei4922': 4923.305,
+          'heii5411': 5413.030, 'hei5015': 5017.0765, 'hei5876': 5877.243,
+          'hei6680': 6679.99}
 
 
-CWLS = {'ha' : [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
-        'hb' : [RESTWL['hb'], RESTWL['hb'], RESTWL['hb']],
-        'hg' : [RESTWL['hg'], RESTWL['hg'], RESTWL['hg']],
-        'hd' : [RESTWL['hd'], RESTWL['hd'], RESTWL['hd']],
-        'oiiia' : [RESTWL['oiiia'], RESTWL['oiiia'], RESTWL['oiiia']],                   
-        'oiiib' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
-        'oi' : [RESTWL['oi'], RESTWL['oi'], RESTWL['oi']],                   
-        'oiii' : [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],                   
-        'nii' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
-        'niia' : [RESTWL['niia'], RESTWL['niia'], RESTWL['niib']],                   
-        'niib' : [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],                   
-        'nii5755' : [RESTWL['nii5755'], RESTWL['nii5755'], RESTWL['nii5755']],                   
-        'siia' : [RESTWL['siia'],RESTWL['siia'], RESTWL['siib']],                   
-        'siib' : [RESTWL['siib'], RESTWL['siia'], RESTWL['siib']],                   
-        'sii' : [RESTWL['sii'], RESTWL['siia'], RESTWL['siib']],                   
-        'siii' : [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
-        'hei4922' : [RESTWL['hei4922'], RESTWL['hei4922'], RESTWL['hei4922']],
-        'oii7320' : [RESTWL['oii7320'], RESTWL['oii7320'], RESTWL['oii7320']],
-        'oii7331' : [RESTWL['oii7331'], RESTWL['oii7331'], RESTWL['oii7331']],
-        'ariii7135' : [RESTWL['ariii7135'], RESTWL['ariii7135'], RESTWL['ariii7135']],
-        'siii6312' : [RESTWL['siii6312'], RESTWL['siii6312'], 
-                  RESTWL['siii6312']]}
+CWLS = {'ha': [RESTWL['ha'], RESTWL['niia'], RESTWL['niib']],
+        'hb': [RESTWL['hb'], RESTWL['hb'], RESTWL['hb']],
+        'hg': [RESTWL['hg'], RESTWL['hg'], RESTWL['hg']],
+        'hd': [RESTWL['hd'], RESTWL['hd'], RESTWL['hd']],
+        'oiiia': [RESTWL['oiiia'], RESTWL['oiiia'], RESTWL['oiiia']],
+        'oiiib': [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],
+        'oi': [RESTWL['oi'], RESTWL['oi'], RESTWL['oi']],
+        'oiii': [RESTWL['oiiib'], RESTWL['oiiib'], RESTWL['oiiib']],
+        'nii': [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],
+        'niia': [RESTWL['niia'], RESTWL['niia'], RESTWL['niib']],
+        'niib': [RESTWL['niib'], RESTWL['niia'], RESTWL['niib']],
+        'nii5755': [RESTWL['nii5755'], RESTWL['nii5755'], RESTWL['nii5755']],
+        'siia': [RESTWL['siia'], RESTWL['siia'], RESTWL['siib']],
+        'siib': [RESTWL['siib'], RESTWL['siia'], RESTWL['siib']],
+        'sii': [RESTWL['sii'], RESTWL['siia'], RESTWL['siib']],
+        'siii': [RESTWL['siii'], RESTWL['siii'], RESTWL['siii']],
+        'hei4922': [RESTWL['hei4922'], RESTWL['hei4922'], RESTWL['hei4922']],
+        'oii7320': [RESTWL['oii7320'], RESTWL['oii7320'], RESTWL['oii7320']],
+        'oii7331': [RESTWL['oii7331'], RESTWL['oii7331'], RESTWL['oii7331']],
+        'ariii7135': [RESTWL['ariii7135'], RESTWL['ariii7135'],
+                      RESTWL['ariii7135']],
+        'siii6312': [RESTWL['siii6312'], RESTWL['siii6312'],
+                     RESTWL['siii6312']]}
 
 
 c = 2.99792458E5
 
-def getGalcen(s3d, mask = True, line='ha', sC=1,
+def getGalcen(s3d, mask=True, line='ha', sC=1,
               xlim1=155, xlim2=165, ylim1=155, ylim2=165):
-    """ Gets the central coordniates of the starlight-weighted light 
+    """ Gets the central coordniates of the starlight-weighted light
     distribution, usually a galaxy (or part thereof)
     Parameters
     ----------
@@ -91,30 +93,32 @@ def getGalcen(s3d, mask = True, line='ha', sC=1,
             xcen, ycen are the indices of the center of the weighted average
             of the light distribution
     """
-    
+
     if mask == True:
         hamap, hamape = extract2d(line=line, sC=sC)
         mask = hamap/hamape > 3
     galcube, galcerr = extract2d(s3d, wl1=5000, wl2=9000)
     ysum, xsum = 2*[np.array([])]
     maxx, maxy = 0, 0
+
     for yindx in np.arange(galcube.shape[0]):
-        ysumline = np.nansum(([a for a in galcube[yindx,:][mask[yindx,:]]]))
+        ysumline = np.nansum(([a for a in galcube[yindx, :][mask[yindx, :]]]))
         ysum = np.append(ysum, ysumline)
-        if ysumline > maxy  and (ylim1 <= yindx <= ylim2):
+        if ysumline > maxy and (ylim1 <= yindx <= ylim2):
             bpixy, maxy = yindx, ysumline
-    
+
     for xindx in np.arange(galcube.shape[1]):
-        xsumline = np.nansum([a for a in galcube[:,xindx][mask[:,xindx]]])
+        xsumline = np.nansum([a for a in galcube[:, xindx][mask[:, xindx]]])
         xsum = np.append(xsum, xsumline)
         if xsumline > maxx and (xlim1 <= xindx <= xlim2):
             bpixx, maxx = xindx, xsumline
-            
-    ycen = np.nansum(ysum[ysum > 0] * np.arange(s3d.leny)[ysum > 0])\
-        /np.nansum(ysum[ysum > 0])
-    xcen = np.nansum(xsum[xsum > 0] * np.arange(s3d.lenx)[xsum > 0])\
-        /np.nansum(xsum[xsum > 0])
-    logger.info('Galaxy center calculated at %.2f, %.2f' %(xcen, ycen))
+
+    ycen = np.nansum(ysum[ysum > 0] * np.arange(s3d.leny)[ysum > 0]) /\
+        np.nansum(ysum[ysum > 0])
+
+    xcen = np.nansum(xsum[xsum > 0] * np.arange(s3d.lenx)[xsum > 0]) / \
+        np.nansum(xsum[xsum > 0])
+    logger.info('Galaxy center calculated at %.2f, %.2f', xcen, ycen)
     return xcen, ycen
 
 
@@ -153,7 +157,6 @@ def cutCube(s3d, x1=None, x2=None, y1=None, y2=None):
     scut.head['CRPIX1'] -= x1
     scut.head['CRPIX2'] -= y1
     return scut
-    
 
 
 def extract3d(s3d, wl1=None, wl2=None):
@@ -182,12 +185,11 @@ def extract3d(s3d, wl1=None, wl2=None):
     return subcube, suberr, subwl
 
 
-
-def extract2d(s3d, wl1='', wl2='', c1='', c2 = '', 
+def extract2d(s3d, wl1='', wl2='', c1='', c2='',
               z=None, line=None, dv=120, dwl=None,
-                 meth = 'sum', sC=0, v=0, pSpec=False):
+              meth='sum', sC=0, v=0, pSpec=False):
     """Extracts a single plane, summed/averaged/medianed between two wave-
-    lenghts, or for a single emission line. If the line is known to the code, 
+    lenghts, or for a single emission line. If the line is known to the code,
     fits a Gaussian and determines mean redshift and velocity dispersion. Plots
     the line fit.
 
@@ -224,36 +226,36 @@ def extract2d(s3d, wl1='', wl2='', c1='', c2 = '',
     if wl1 != '' and c1 == '':
         c1 = 5
     if wl2 != '' and c2 == '':
-        c2 = 5        
-        
-    if line != None: 
+        c2 = 5
+
+    if line is not None:
         line = line.lower()
         if line in CWLS.keys():
-            wl = CWLS[line][0] * (1+z)    
+            wl = CWLS[line][0] * (1+z)
             cont1 = (CWLS[line][1] * (1+z)) - 2.3538 * dv/c*wl * 1.5
             cont2 = (CWLS[line][2] * (1+z)) + 2.3538 * dv/c*wl * 1.5
-                
-        elif line != None:
-            logger.error('Line %s not known' %line)      
+
+        elif line is not None:
+            logger.error('Line %s not known', line)
             raise SystemExit
         if cont2 > s3d.wave[-1]:
-            logger.error('Line %s outside of WL range' %line)      
-            raise SystemExit       
-            
-        if dwl == None:
+            logger.error('Line %s outside of WL range', line)
+            raise SystemExit
+
+        if dwl is None:
             p1 = max(0, s3d.wltopix(wl - 2.3538*dv/c*wl))
-            p2 = max(p1+1, s3d.wltopix(wl +  2.3538*dv/c*wl))
+            p2 = max(p1 + 1, s3d.wltopix(wl +  2.3538*dv/c*wl))
         else:
             p1 = max(0, s3d.wltopix(wl - dwl))
-            p2 = max(p1+1, s3d.wltopix(wl +  dwl))
-            
-        if line == 'sii':
+            p2 = max(p1 + 1, s3d.wltopix(wl +  dwl))
+
+        if line is 'sii':
             p1 = max(0, s3d.wltopix(wl - 600./c*wl))
-            p2 = max(p1+1, s3d.wltopix(wl +  600./c*wl))            
+            p2 = max(p1 + 1, s3d.wltopix(wl +  600./c*wl))
 
         cpix1 = s3d.wltopix(cont1)
         cpix2 = s3d.wltopix(cont2)
-        
+
     elif wl1 != '' and wl2 != '' and c1 != '' and c2 != '':
         p1 = s3d.wltopix(wl1)
         p2 = s3d.wltopix(wl2)
@@ -265,58 +267,56 @@ def extract2d(s3d, wl1='', wl2='', c1='', c2 = '',
         logger.error("Do not know what to extract")
         raise SystemError
 
-
     if meth in ['sum']:
-        allPlane = np.nansum(s3d.data[p1:p2], axis = 0)
-        allError = np.nansum(s3d.erro[p1:p2]**2, axis = 0)**0.5
+        allPlane = np.nansum(s3d.data[p1:p2], axis=0)
+        allError = np.nansum(s3d.erro[p1:p2]**2, axis=0)**0.5
 
     elif meth == 'median':
-        allPlane = np.nanmedian(s3d.data[p1:p2], axis = 0)
-        allError = np.nansum(s3d.erro[p1:p2]**2, axis = 0)**0.5 / (p2-p1)**0.5
+        allPlane = np.nanmedian(s3d.data[p1:p2], axis=0)
+        allError = np.nansum(s3d.erro[p1:p2]**2, axis=0)**0.5 / (p2-p1)**0.5
 
     if sC == 1:
         if s3d.verbose > 0 or v > 0:
-            logger.info( 'Subtracting continuum using lambda < %.1f and lambda > %.1f' \
-                %(cont1, cont2))
+            logger.info('Subtracting continuum using lambda < %.1f and lambda > %.1f',
+                        cont1, cont2)
         currPlane = subtractCont(s3d, allPlane, p1, p2, cpix1, cpix2)
         currError = contErro(s3d, allError, p1, p2, cpix1, cpix2)
     else:
         currPlane = allPlane
         currError = allError
-    
+
     if meth in ['sum']:
         currPlane = currPlane * s3d.wlinc
         currError = currError * s3d.wlinc
 
-    if line != None:
-        y = np.nansum(np.nansum(s3d.data[p1:p2, 20:-20, 20:-20], 
-                                   axis=1), axis=1)
+    if line is not None:
+        y = np.nansum(np.nansum(s3d.data[p1:p2, 20:-20, 20:-20], axis=1),
+                      axis=1)
         x = s3d.wave[p1:p2]
         gp = onedgaussfit(x, y/1E3,
           params = [np.median(y[0:2]/1E3), np.nanmax(y)/1E3, np.median(x), 2])
         gw = gp[0][3] / gp[0][2] * c
-        
+
         if s3d.verbose > 0:
-            logger.info("Width of line (Gaussian fit): %.0f km/s" %gw)
+            logger.info("Width of line (Gaussian fit): %.0f km/s", gw)
             if line in CWLS.keys():
-                logger.info("Mean redshift: %.5f"  %(gp[0][2]/CWLS[line][0] - 1))
-                
+                logger.info("Mean redshift: %.5f", gp[0][2]/CWLS[line][0] - 1)
+
         if gw > dv:
             logger.warning("Width of line bigger than extraction window")
-    
-        if line in CWLS.keys() or pSpec != False:
-            plotspec(s3d, x, y, name='%s_plane' %line, 
-                     lines=[[gp[-1], gp[1]], [x, x*0 + gp[0][0]]])
-    
-    return currPlane, currError
-    
-    
 
-def extract1d(s3d, ra=None, dec=None, x=None, y=None, 
-             radius=None, size= None, verbose=1,
-             method='sum', total=False, ell=None, exmask=None,
-             pexmask=False):
-                 
+        if line in CWLS.keys() or pSpec is not False:
+            plotspec(s3d, x, y, name='%s_plane' % line,
+                     lines=[[gp[-1], gp[1]], [x, x*0 + gp[0][0]]])
+
+    return currPlane, currError
+
+
+def extract1d(s3d, ra=None, dec=None, x=None, y=None,
+              radius=None, size=None, verbose=1,
+              method='sum', total=False, ell=None, exmask=None,
+              pexmask=False):
+
     """Extracts a single spectrum at a given position.
     If neither radius, total or ell is given, extracts a single spaxel at
     ra, dec, or (if ra, dec are not provided), x and y. If radius, ell or
@@ -365,21 +365,21 @@ def extract1d(s3d, ra=None, dec=None, x=None, y=None,
             Error values of extracted/combined spaxels
     """
 
-    if ra!=None and dec!=None:
+    if ra is not None and dec is not None:
         try:
             posx, posy = s3d.skytopix(ra, dec)
         except TypeError:
             posx, posy = s3d.sexatopix(ra, dec)
-    elif ell!=None:
+    elif ell is not None:
         posx, posy, a, b, theta = ell
-    elif total==False:
+    elif total is False:
         posx, posy = x, y
 
-    if radius==None and size==None and total==False and ell==None:
-        if verbose==1:
-            logger.info('Extracting pixel %i, %i' %(posx, posy))
-        spec = np.array(s3d.data[:,posy, posx])
-        err  = np.array(s3d.erro[:,posy, posx])
+    if radius is None and size is None and total is False and ell is None:
+        if verbose == 1:
+            logger.info('Extracting pixel %i, %i', posx, posy)
+        spec = np.array(s3d.data[:, posy, posx])
+        err = np.array(s3d.erro[:, posy, posx])
         return s3d.wave, spec, err
 
     if total==False and radius!=None:
@@ -402,7 +402,9 @@ def extract1d(s3d, ra=None, dec=None, x=None, y=None,
         maxx = min(s3d.lenx-1, posx+size+1)
 
         spec = np.array(s3d.data[:, miny:maxy, minx:maxx])
-        err  = np.array(s3d.erro[:, miny:maxy, minx:maxx])
+        err = np.array(s3d.erro[:, miny:maxy, minx:maxx])
+        spec[np.isinf(spec)] = 0
+        err[np.isinf(err)] = 0
 
         rspec = np.nansum(np.nansum(spec, axis = 1), axis=1)
         rerr = np.nansum(np.nansum(err**2, axis = 1), axis=1)**0.5
@@ -453,24 +455,25 @@ def extract1d(s3d, ra=None, dec=None, x=None, y=None,
     if method in ['average', 'avg']:
         spec = np.nansum(spectra, axis=0) / nspec
         err = np.nansum(errors**2, axis=0)**0.5  / nspec
-    
+
     # Add systematic error of 3%
 #    err = (err**2 + (0.03*spec)**2)**0.5
-    
+
     if s3d.verbose > 0:
         logger.info('Extracting spectra took %.1f s' %(time.time()-t1))
 
     if pexmask == True:
         logger.info('Plotting extraction map')
-        pdfout(s3d, exmask, name='exmask', 
-               cmap = 'gist_gray')
-    
+        pdfout(s3d, exmask, name='exmask', cmap='gist_gray')
+
+    spec[np.isinf(spec)] = 0
+    err[np.isinf(err)] = 0
     return s3d.wave, spec, err
 
 
 def contErro(s3d, erro, p1, p2, cpix1, cpix2, dx=10):
-    cerr1 = np.nanmedian(s3d.erro[p1-dx:p1], axis = 0) / (dx)**0.5   
-    cerr2 = np.nanmedian(s3d.erro[p2:p2+dx], axis = 0) / (dx)**0.5   
+    cerr1 = np.nanmedian(s3d.erro[p1-dx:p1], axis = 0) / (dx)**0.5
+    cerr2 = np.nanmedian(s3d.erro[p2:p2+dx], axis = 0) / (dx)**0.5
     cerro = (cerr1**2 + cerr2**2)**0.5 / np.sqrt(2.)
     return (erro**2 + cerro**2)**0.5
 
@@ -479,27 +482,27 @@ def subtractCont(s3d, plane, p1, p2, cpix1, cpix2, dx=10):
     cont2 = np.nanmedian(s3d.data[p2:p2+dx], axis=0)
     cont = np.nanmean(np.array([cont1,cont2]), axis=0)
     return plane - cont * (p2 - p1)
-    
+
 def extractCont(s3d, line, dv=120, dx=10):
     z = s3d.z
-    if line != None: 
+    if line != None:
         line = line.lower()
         if line in CWLS.keys():
-            wl = CWLS[line][0] * (1+z)        
+            wl = CWLS[line][0] * (1+z)
             cont1 = (CWLS[line][1] * (1+z)) - 2.3538 * dv/c*wl * 1.5
             cont2 = (CWLS[line][2] * (1+z)) + 2.3538 * dv/c*wl * 1.5
         elif line != None:
-            logger.error('Line %s not known' %line)      
+            logger.error('Line %s not known' %line)
             raise SystemExit
-    
+
         p1 = max(0, s3d.wltopix(wl - 2.3538*dv/c*wl))
         p2 = max(p1+1, s3d.wltopix(wl +  2.3538*dv/c*wl))
-        
+
         if line == 'sii':
             p1 = max(0, s3d.wltopix(wl - 600./c*wl))
-            p2 = max(p1+1, s3d.wltopix(wl +  600./c*wl))            
-    
+            p2 = max(p1+1, s3d.wltopix(wl +  600./c*wl))
+
     cont1 = np.nanmedian(s3d.data[p1-dx:p1], axis=0)
     cont2 = np.nanmedian(s3d.data[p2:p2+dx], axis=0)
     cont = np.nanmean(np.array([cont1,cont2]), axis=0)
-    return cont  
+    return cont

@@ -200,7 +200,14 @@ class MuseSpec(object):
                 hdu.writeto(mask)
 
     def cubezap(self, cube=None, skycube=None, mask=None, out=None,
-                cfwidthSP=20, skymask=None, nevals=[]):
+                cfwidthSP=20, skymask=None, nevals=[], sky=True):
+
+        if sky == False:
+            zlevel = 'none'
+            cftype = 'median'
+        else:
+            zlevel = 'median'
+            cftype = 'weight'
         if nevals != []:
             optimizeType = 'none'
         else:
@@ -223,14 +230,15 @@ class MuseSpec(object):
             svdfn = '%s_svd%s' % (self.base, self.ext)
             if os.path.isfile(svdfn):
                 os.remove(svdfn)
-            zap.SVDoutput(skycube, svdoutputfits=svdfn, mask=skymask)
+            zap.SVDoutput(skycube, svdoutputfits=svdfn, mask=skymask,
+                          zlevel=zlevel, cftype=cftype)
             zap.process(inc, outcubefits=out, extSVD=svdfn,  # mask=mask,
                         cfwidthSP=cfwidthSP, nevals=nevals,
                         optimizeType=optimizeType)
         else:
             zap.process(inc, outcubefits=out, mask=mask, nevals=nevals,
-                        cfwidthSP=cfwidthSP,
-                        optimizeType=optimizeType)
+                        cfwidthSP=cfwidthSP, zlevel=zlevel,
+                        optimizeType=optimizeType, cftype=cftype)
         self.output = out
 
     def subtractSky(self, skypix=None, order=3, ff=0.03):

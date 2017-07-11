@@ -62,10 +62,11 @@ def asciiin(s3d, ascii):
     f = open(ascii, 'r')
     lines = [g for g in f.readlines() if not g.startswith('#')]
     f.close()
+    error = False
     wave, spec, err = np.array([]), np.array([]), np.array([])
     for line in lines:
         line = line.split()
-        if len(line) == 3:
+        if len(line) >= 3:
             error = True
             wave = np.append(wave, float(line[0]))
             spec = np.append(spec, float(line[1]))
